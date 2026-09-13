@@ -1,0 +1,87 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f7fa;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+  padding: 18px;
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+
+textarea,
+input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+textarea {
+  min-height: 80px;
+}
+
+.device {
+  background: white;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.device-code {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.device-info {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.selected-box {
+  margin-top: 20px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+}
+
+.selected-device {
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 14px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#status {
+  font-size: 13px;
+  margin-top: 8px;
+  color: #666;
+}
