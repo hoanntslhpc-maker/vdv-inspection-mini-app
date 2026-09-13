@@ -147,7 +147,7 @@ function renderSelectedDevices() {
 
 document
   .getElementById("createJobBtn")
-  .addEventListener("click", () => {
+  .addEventListener("click", async () => {
 
     const content =
       document
@@ -165,17 +165,48 @@ document
       return;
     }
 
-    const data = {
+    const CREATE_JOB_URL =
+      "https://kiemtrathietbi.app.n8n.cloud/webhook/create-inspection";
+
+    const payload = {
       request: content,
-      devices: Array.from(selectedDevices.values())
+      devices: Array.from(selectedDevices.values()),
+
+      telegram_user: tg.initDataUnsafe?.user || null,
+
+      created_at: new Date().toISOString()
     };
 
-    console.log("JOB DATA:", data);
+    try {
 
-    alert(
-      "Đã chọn " +
-      selectedDevices.size +
-      " thiết bị."
-    );
+      const response = await fetch(CREATE_JOB_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Không gửi được yêu cầu.");
+      }
+
+      alert(
+        "Đã tạo yêu cầu với " +
+        selectedDevices.size +
+        " thiết bị."
+      );
+
+      tg.close();
+
+    } catch (error) {
+
+      console.error(error);
+
+      alert(
+        "Có lỗi khi tạo công việc."
+      );
+
+    }
 
   });
