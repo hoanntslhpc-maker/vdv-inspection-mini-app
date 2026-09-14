@@ -28,7 +28,7 @@ let devices = [];
 
 let deviceGroups = {};
 
-let selectedType = null;
+let selectedGroup = null;
 
 let selectedDevice = null;
 
@@ -99,13 +99,34 @@ async function loadJob() {
 
     }
 
-    const data =
-      await response.json();
+    const rawText =
+      await response.text();
 
+    if (!rawText.trim()) {
 
-    /* -----------------------------------------
-       n8n có thể trả object hoặc array
-    ----------------------------------------- */
+      throw new Error(
+        "API get-job không trả dữ liệu."
+      );
+
+    }
+
+    let data;
+
+    try {
+
+      data =
+        JSON.parse(rawText);
+
+    }
+
+    catch {
+
+      throw new Error(
+        "API get-job không trả JSON hợp lệ."
+      );
+
+    }
+
 
     if (Array.isArray(data)) {
 
@@ -117,18 +138,18 @@ async function loadJob() {
 
       }
 
-      currentJob = data[0];
-
-    } else {
-
-      currentJob = data;
+      currentJob =
+        data[0];
 
     }
 
+    else {
 
-    /* -----------------------------------------
-       Parse devices_json
-    ----------------------------------------- */
+      currentJob =
+        data;
+
+    }
+
 
     devices =
       parseDevices(
@@ -145,12 +166,10 @@ async function loadJob() {
     }
 
 
-    /* -----------------------------------------
-       Group devices
-    ----------------------------------------- */
-
     deviceGroups =
-      groupDevicesByType(devices);
+      groupDevicesByType(
+        devices
+      );
 
 
     renderJob();
@@ -216,30 +235,125 @@ function parseDevices(value) {
 
 
 /* =========================================================
-   7. GROUP DEVICE BY SENSOR TYPE
+   7. NORMALIZE RAW SENSOR TYPE
+========================================================= */
+
+function normalizeRawSensorType(type) {
+
+  return String(type || "")
+    .trim()
+    .toUpperCase();
+
+}
+
+
+/* =========================================================
+   8. DEVICE GROUP KEY
+========================================================= */
+
+function getDeviceGroupKey(
+  sensorType
+) {
+
+  const type =
+    normalizeRawSensorType(
+      sensorType
+    );
+
+
+  const stressTypes = [
+    "JE",
+    "SG",
+    "ST",
+    "SGS",
+    "STS"
+  ];
+
+
+  if (
+    stressTypes.includes(type)
+  ) {
+
+    return "STRESS_GROUP";
+
+  }
+
+
+  return (
+    type ||
+    "OTHER"
+  );
+
+}
+
+
+/* =========================================================
+   9. DEVICE GROUP DISPLAY NAME
+========================================================= */
+
+function getDeviceGroupName(
+  groupKey
+) {
+
+  const names = {
+
+    DP:
+      "Thiết bị đo dọi DPL",
+
+    EX:
+      "Giãn kế đa điểm EX",
+
+    TH:
+      "Cảm biến nhiệt độ",
+
+    STRESS_GROUP:
+      "Cảm biến ứng suất",
+
+    PZ:
+      "Cảm biến áp lực thấm"
+
+  };
+
+
+  return (
+    names[groupKey]
+    ||
+    groupKey
+  );
+
+}
+
+
+/* =========================================================
+   10. GROUP DEVICES
 ========================================================= */
 
 function groupDevicesByType(list) {
 
   const groups = {};
 
+
   list.forEach(device => {
 
-    const type =
-      String(
-        device.sensor_type ||
-        "OTHER"
-      )
-      .trim()
-      .toUpperCase();
+    const groupKey =
+      getDeviceGroupKey(
+        device.sensor_type
+      );
 
-    if (!groups[type]) {
-      groups[type] = [];
+
+    if (!groups[groupKey]) {
+
+      groups[groupKey] = [];
+
     }
 
-    groups[type].push(device);
+
+    groups[groupKey].push(
+      device
+    );
 
   });
+
 
   return groups;
 
@@ -247,28 +361,38 @@ function groupDevicesByType(list) {
 
 
 /* =========================================================
-   8. RENDER JOB INFORMATION
+   11. RENDER JOB
 ========================================================= */
 
 function renderJob() {
 
   const loading =
-    document.getElementById("loading");
+    document.getElementById(
+      "loading"
+    );
+
 
   if (loading) {
-    loading.style.display = "none";
+
+    loading.style.display =
+      "none";
+
   }
 
 
   setText(
     "jobId",
-    currentJob.job_id || jobId
+    currentJob.job_id ||
+    jobId
   );
+
 
   setText(
     "jobRequest",
-    currentJob.request || "-"
+    currentJob.request ||
+    "-"
   );
+
 
   setText(
     "jobRequester",
@@ -276,10 +400,12 @@ function renderJob() {
     "Không xác định"
   );
 
+
   setText(
     "deviceCount",
     devices.length
   );
+
 
   setText(
     "jobStatus",
@@ -293,6 +419,7 @@ function renderJob() {
     "jobInfo"
   );
 
+
   showElement(
     "deviceTypeSection"
   );
@@ -301,7 +428,7 @@ function renderJob() {
 
 
 /* =========================================================
-   9. RENDER DEVICE TYPES
+   12. RENDER DEVICE GROUPS
 ========================================================= */
 
 function renderDeviceTypes() {
@@ -310,6 +437,7 @@ function renderDeviceTypes() {
     document.getElementById(
       "deviceTypes"
     );
+
 
   if (!container) {
 
@@ -320,27 +448,34 @@ function renderDeviceTypes() {
     return;
   }
 
-  container.innerHTML = "";
+
+  container.innerHTML =
+    "";
 
 
   Object.entries(
     deviceGroups
   ).forEach(
-    ([type, list]) => {
+    ([groupKey, list]) => {
 
       const button =
         document.createElement(
           "button"
         );
 
-      button.type = "button";
+
+      button.type =
+        "button";
+
 
       button.className =
         "device-type-button";
 
 
       const displayName =
-        getSensorTypeName(type);
+        getDeviceGroupName(
+          groupKey
+        );
 
 
       button.innerHTML = `
@@ -358,8 +493,8 @@ function renderDeviceTypes() {
         "click",
         () => {
 
-          selectDeviceType(
-            type,
+          selectDeviceGroup(
+            groupKey,
             button
           );
 
@@ -378,19 +513,24 @@ function renderDeviceTypes() {
 
 
 /* =========================================================
-   10. SELECT DEVICE TYPE
+   13. SELECT DEVICE GROUP
 ========================================================= */
 
-function selectDeviceType(
-  type,
+function selectDeviceGroup(
+  groupKey,
   button
 ) {
 
-  selectedType = type;
+  selectedGroup =
+    groupKey;
 
-  selectedDevice = null;
 
-  currentProcedure = [];
+  selectedDevice =
+    null;
+
+
+  currentProcedure =
+    [];
 
 
   document
@@ -412,7 +552,9 @@ function selectDeviceType(
 
 
   renderDevices(
-    deviceGroups[type]
+    deviceGroups[
+      groupKey
+    ] || []
   );
 
 
@@ -424,7 +566,7 @@ function selectDeviceType(
 
 
 /* =========================================================
-   11. RENDER DEVICES
+   14. RENDER DEVICES
 ========================================================= */
 
 function renderDevices(list) {
@@ -433,6 +575,7 @@ function renderDevices(list) {
     document.getElementById(
       "deviceSection"
     );
+
 
   const container =
     document.getElementById(
@@ -445,7 +588,8 @@ function renderDevices(list) {
   }
 
 
-  container.innerHTML = "";
+  container.innerHTML =
+    "";
 
 
   list.forEach(device => {
@@ -455,7 +599,10 @@ function renderDevices(list) {
         "button"
       );
 
-    button.type = "button";
+
+    button.type =
+      "button";
+
 
     button.className =
       "device-button";
@@ -464,6 +611,12 @@ function renderDevices(list) {
     const code =
       device.code ||
       "Không có mã";
+
+
+    const type =
+      normalizeRawSensorType(
+        device.sensor_type
+      );
 
 
     const mux =
@@ -492,6 +645,7 @@ function renderDevices(list) {
 
     const meta =
       [
+        `Type: ${type}`,
         mux,
         channel,
         elevation,
@@ -533,16 +687,18 @@ function renderDevices(list) {
 
 
   if (section) {
+
     section.classList.remove(
       "hidden"
     );
+
   }
 
 }
 
 
 /* =========================================================
-   12. SELECT DEVICE
+   15. SELECT DEVICE
 ========================================================= */
 
 async function selectDevice(
@@ -572,18 +728,32 @@ async function selectDevice(
   );
 
 
+  const realSensorType =
+    normalizeRawSensorType(
+      device.sensor_type
+    );
+
+
   await loadProcedure(
-    selectedType
+    realSensorType
   );
 
 }
 
 
 /* =========================================================
-   13. LOAD PROCEDURE
+   16. LOAD PROCEDURE
 ========================================================= */
 
-async function loadProcedure(type) {
+async function loadProcedure(
+  sensorType
+) {
+
+  const type =
+    normalizeRawSensorType(
+      sensorType
+    );
+
 
   const section =
     document.getElementById(
@@ -637,8 +807,38 @@ async function loadProcedure(type) {
     }
 
 
-    let data =
-      await response.json();
+    const rawText =
+      await response.text();
+
+
+    if (!rawText.trim()) {
+
+      throw new Error(
+        `Không tìm thấy quy trình cho Sensor Type ${type}.`
+      );
+
+    }
+
+
+    let data;
+
+
+    try {
+
+      data =
+        JSON.parse(
+          rawText
+        );
+
+    }
+
+    catch {
+
+      throw new Error(
+        "API get-procedure không trả JSON hợp lệ."
+      );
+
+    }
 
 
     if (!Array.isArray(data)) {
@@ -653,8 +853,13 @@ async function loadProcedure(type) {
 
     data.sort(
       (a, b) =>
-        Number(a.step_order) -
-        Number(b.step_order)
+        Number(
+          a.step_order
+        )
+        -
+        Number(
+          b.step_order
+        )
     );
 
 
@@ -667,7 +872,7 @@ async function loadProcedure(type) {
     ) {
 
       throw new Error(
-        `Không có quy trình cho loại ${type}.`
+        `Không có quy trình cho Sensor Type ${type}.`
       );
 
     }
@@ -689,8 +894,15 @@ async function loadProcedure(type) {
 
       container.innerHTML = `
         <div class="error-box">
+
           Không tải được quy trình kiểm tra.
-          ${escapeHtml(error.message)}
+
+          <br><br>
+
+          ${escapeHtml(
+            error.message
+          )}
+
         </div>
       `;
 
@@ -702,7 +914,7 @@ async function loadProcedure(type) {
 
 
 /* =========================================================
-   14. RENDER PROCEDURE
+   17. RENDER PROCEDURE
 ========================================================= */
 
 function renderProcedure() {
@@ -718,12 +930,14 @@ function renderProcedure() {
   }
 
 
-  container.innerHTML = "";
+  container.innerHTML =
+    "";
 
 
   setText(
     "selectedDeviceCode",
-    selectedDevice?.code || ""
+    selectedDevice?.code ||
+    ""
   );
 
 
@@ -752,7 +966,7 @@ function renderProcedure() {
 
 
 /* =========================================================
-   15. CREATE PROCEDURE STEP
+   18. CREATE PROCEDURE STEP
 ========================================================= */
 
 function createProcedureStep(
@@ -771,13 +985,8 @@ function createProcedureStep(
 
   const order =
     Number(
-      step.step_order || 0
-    );
-
-
-  const required =
-    toBoolean(
-      step.required
+      step.step_order ||
+      0
     );
 
 
@@ -789,7 +998,8 @@ function createProcedureStep(
 
   const photoMin =
     Number(
-      step.photo_min || 0
+      step.photo_min ||
+      0
     );
 
 
@@ -803,7 +1013,8 @@ function createProcedureStep(
 
       <div class="step-title">
         ${escapeHtml(
-          step.step_title || ""
+          step.step_title ||
+          ""
         )}
       </div>
 
@@ -820,7 +1031,8 @@ function createProcedureStep(
 
         <div class="step-info-content">
           ${escapeHtml(
-            step.method || ""
+            step.method ||
+            ""
           )}
         </div>
 
@@ -835,7 +1047,8 @@ function createProcedureStep(
 
         <div class="step-info-content">
           ${escapeHtml(
-            step.standard || ""
+            step.standard ||
+            ""
           )}
         </div>
 
@@ -844,8 +1057,8 @@ function createProcedureStep(
 
       <div
         class="result-area"
-        id="result-${order}">
-      </div>
+        id="result-${order}"
+      ></div>
 
 
       <div class="form-group">
@@ -889,8 +1102,8 @@ function createProcedureStep(
 
           <div
             class="photo-preview"
-            id="preview-${order}">
-          </div>
+            id="preview-${order}"
+          ></div>
 
         </div>
 
@@ -923,17 +1136,21 @@ function createProcedureStep(
       );
 
 
-    photoInput.addEventListener(
-      "change",
-      event => {
+    if (photoInput) {
 
-        previewPhotos(
-          event,
-          order
-        );
+      photoInput.addEventListener(
+        "change",
+        event => {
 
-      }
-    );
+          previewPhotos(
+            event,
+            order
+          );
+
+        }
+      );
+
+    }
 
   }
 
@@ -944,7 +1161,7 @@ function createProcedureStep(
 
 
 /* =========================================================
-   16. RENDER INPUT BY INPUT_TYPE
+   19. RENDER INPUT
 ========================================================= */
 
 function renderInput(
@@ -953,14 +1170,18 @@ function renderInput(
 ) {
 
   const order =
-    Number(step.step_order);
+    Number(
+      step.step_order
+    );
+
 
   const type =
     String(
-      step.input_type || "select_note"
+      step.input_type ||
+      "select_note"
     )
-    .trim()
-    .toLowerCase();
+      .trim()
+      .toLowerCase();
 
 
   const options =
@@ -969,316 +1190,454 @@ function renderInput(
     );
 
 
-  /* -----------------------------------------
-     SELECT / SELECT_NOTE
-  ----------------------------------------- */
+  /* =======================================================
+     SELECT / SELECT_NOTE / FINAL
+  ======================================================= */
 
   if (
-    type === "select" ||
-    type === "select_note" ||
+    type === "select"
+    ||
+    type === "select_note"
+    ||
     type === "final_assessment"
   ) {
 
-    const group =
-      document.createElement(
-        "div"
-      );
+    container.innerHTML = `
 
+      <div class="form-group">
 
-    group.className =
-      "form-group";
+        <label class="form-label">
+          ${
+            type === "final_assessment"
+              ? "Đánh giá tình trạng"
+              : "Kết quả kiểm tra"
+          }
+        </label>
 
+        <select
+          id="value-${order}"
+        >
 
-    const label =
-      document.createElement(
-        "label"
-      );
+          <option value="">
+            -- Chọn kết quả --
+          </option>
 
+          ${
+            options
+              .map(
+                option => `
+                  <option
+                    value="${escapeHtml(option)}"
+                  >
+                    ${escapeHtml(option)}
+                  </option>
+                `
+              )
+              .join("")
+          }
 
-    label.className =
-      "form-label";
+        </select>
 
-
-    label.textContent =
-      type === "final_assessment"
-        ? "Đánh giá tình trạng"
-        : "Kết quả kiểm tra";
-
-
-    const select =
-      document.createElement(
-        "select"
-      );
-
-
-    select.id =
-      `value-${order}`;
-
-
-    const empty =
-      document.createElement(
-        "option"
-      );
-
-
-    empty.value = "";
-
-    empty.textContent =
-      "-- Chọn kết quả --";
-
-
-    select.appendChild(
-      empty
-    );
-
-
-    options.forEach(option => {
-
-      const item =
-        document.createElement(
-          "option"
-        );
-
-
-      item.value =
-        option;
-
-      item.textContent =
-        option;
-
-
-      select.appendChild(
-        item
-      );
-
-    });
-
-
-    group.appendChild(
-      label
-    );
-
-    group.appendChild(
-      select
-    );
-
-
-    container.appendChild(
-      group
-    );
+      </div>
+    `;
 
 
     return;
+
   }
 
 
-  /* -----------------------------------------
-     NUMBER RESULT
-  ----------------------------------------- */
+  /* =======================================================
+     NUMBER_RESULT
+  ======================================================= */
 
   if (
-    type === "number_result" ||
+    type === "number_result"
+  ) {
+
+    container.innerHTML = `
+
+      <div class="form-group">
+
+        <label class="form-label">
+          Giá trị đo
+        </label>
+
+        <div class="number-row">
+
+          <input
+            type="number"
+            step="any"
+            id="value-${order}"
+            placeholder="Nhập giá trị đo"
+          >
+
+          ${
+            step.unit
+
+            ? `
+              <div class="unit-box">
+                ${escapeHtml(step.unit)}
+              </div>
+            `
+
+            : ""
+          }
+
+        </div>
+
+      </div>
+
+
+      ${
+        options.length
+
+        ? `
+
+        <div class="form-group">
+
+          <label class="form-label">
+            Đánh giá
+          </label>
+
+          <select
+            id="assessment-${order}"
+          >
+
+            <option value="">
+              -- Chọn đánh giá --
+            </option>
+
+            ${
+              options
+                .map(
+                  option => `
+                    <option
+                      value="${escapeHtml(option)}"
+                    >
+                      ${escapeHtml(option)}
+                    </option>
+                  `
+                )
+                .join("")
+            }
+
+          </select>
+
+        </div>
+
+        `
+
+        : ""
+      }
+    `;
+
+
+    return;
+
+  }
+
+
+  /* =======================================================
+     MULTI_NUMBER_RESULT
+  ======================================================= */
+
+  if (
     type === "multi_number_result"
   ) {
 
-    const group =
-      document.createElement(
-        "div"
-      );
+    const units =
+      String(
+        step.unit ||
+        ""
+      )
+        .split(",")
+        .map(
+          item =>
+            item.trim()
+        )
+        .filter(Boolean);
 
 
-    group.className =
-      "form-group";
+    container.innerHTML =
+      units
+        .map(
+          (unit, index) => `
 
+            <div class="form-group">
 
-    const label =
-      document.createElement(
-        "label"
-      );
+              <label class="form-label">
+                Giá trị ${escapeHtml(unit)}
+              </label>
 
+              <div class="number-row">
 
-    label.className =
-      "form-label";
+                <input
+                  type="number"
+                  step="any"
+                  id="multi-${order}-${index}"
+                  placeholder="Nhập giá trị"
+                >
 
-    label.textContent =
-      "Giá trị đo";
+                <div class="unit-box">
+                  ${escapeHtml(unit)}
+                </div>
 
+              </div>
 
-    const row =
-      document.createElement(
-        "div"
-      );
+            </div>
+          `
+        )
+        .join("")
+      +
+      `
 
+      <div class="form-group">
 
-    row.className =
-      "number-row";
+        <label class="form-label">
+          Đánh giá
+        </label>
 
+        <select
+          id="assessment-${order}"
+        >
 
-    const input =
-      document.createElement(
-        "input"
-      );
+          <option value="">
+            -- Chọn đánh giá --
+          </option>
 
+          ${
+            options
+              .map(
+                option => `
+                  <option
+                    value="${escapeHtml(option)}"
+                  >
+                    ${escapeHtml(option)}
+                  </option>
+                `
+              )
+              .join("")
+          }
 
-    input.type =
-      "number";
+        </select>
 
-    input.step =
-      "any";
-
-    input.id =
-      `value-${order}`;
-
-    input.placeholder =
-      "Nhập giá trị đo";
-
-
-    row.appendChild(
-      input
-    );
-
-
-    if (step.unit) {
-
-      const unit =
-        document.createElement(
-          "div"
-        );
-
-
-      unit.className =
-        "unit-box";
-
-      unit.textContent =
-        step.unit;
-
-
-      row.appendChild(
-        unit
-      );
-
-    }
-
-
-    group.appendChild(
-      label
-    );
-
-    group.appendChild(
-      row
-    );
-
-
-    container.appendChild(
-      group
-    );
-
-
-    /* Kết luận đo */
-
-    if (options.length) {
-
-      const select =
-        document.createElement(
-          "select"
-        );
-
-
-      select.id =
-        `assessment-${order}`;
-
-      select.style.marginTop =
-        "8px";
-
-
-      const empty =
-        document.createElement(
-          "option"
-        );
-
-
-      empty.value = "";
-
-      empty.textContent =
-        "-- Đánh giá kết quả đo --";
-
-
-      select.appendChild(
-        empty
-      );
-
-
-      options.forEach(option => {
-
-        const item =
-          document.createElement(
-            "option"
-          );
-
-
-        item.value =
-          option;
-
-        item.textContent =
-          option;
-
-
-        select.appendChild(
-          item
-        );
-
-      });
-
-
-      group.appendChild(
-        select
-      );
-
-    }
+      </div>
+    `;
 
 
     return;
+
   }
 
 
-  /* -----------------------------------------
-     DEFAULT TEXT
-  ----------------------------------------- */
+  /* =======================================================
+     MULTI_NODE_NUMBER
+  ======================================================= */
 
-  const group =
-    document.createElement(
-      "div"
+  if (
+    type === "multi_node_number"
+  ) {
+
+    container.innerHTML = `
+
+      <div
+        id="nodes-${order}"
+      ></div>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        onclick="addSensorNode(${order})"
+      >
+        + Thêm mắt cảm biến
+      </button>
+    `;
+
+
+    addSensorNode(
+      order
     );
 
 
-  group.className =
-    "form-group";
+    return;
+
+  }
 
 
-  group.innerHTML = `
+  /* =======================================================
+     DEFAULT TEXT
+  ======================================================= */
 
-    <label class="form-label">
-      Kết quả
-    </label>
+  container.innerHTML = `
 
-    <input
-      type="text"
-      id="value-${order}"
-      placeholder="Nhập kết quả kiểm tra"
-    >
+    <div class="form-group">
 
+      <label class="form-label">
+        Kết quả
+      </label>
+
+      <input
+        type="text"
+        id="value-${order}"
+        placeholder="Nhập kết quả kiểm tra"
+      >
+
+    </div>
   `;
-
-
-  container.appendChild(
-    group
-  );
 
 }
 
 
 /* =========================================================
-   17. PHOTO PREVIEW
+   20. ADD SENSOR NODE
+========================================================= */
+
+function addSensorNode(order) {
+
+  const holder =
+    document.getElementById(
+      `nodes-${order}`
+    );
+
+
+  if (!holder) {
+    return;
+  }
+
+
+  const step =
+    currentProcedure.find(
+      item =>
+        Number(
+          item.step_order
+        )
+        ===
+        Number(order)
+    );
+
+
+  if (!step) {
+    return;
+  }
+
+
+  const index =
+    holder.children.length;
+
+
+  const options =
+    parseOptions(
+      step.options
+    );
+
+
+  const row =
+    document.createElement(
+      "div"
+    );
+
+
+  row.className =
+    "card";
+
+
+  row.innerHTML = `
+
+    <div class="form-group">
+
+      <label class="form-label">
+        Mắt / Dây cảm biến
+      </label>
+
+      <input
+        type="text"
+        id="node-name-${order}-${index}"
+        placeholder="VD: Red, White, Green..."
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label class="form-label">
+        Giá trị đo
+      </label>
+
+      <div class="number-row">
+
+        <input
+          type="number"
+          step="any"
+          id="node-value-${order}-${index}"
+          placeholder="Nhập giá trị"
+        >
+
+        ${
+          step.unit
+
+          ? `
+            <div class="unit-box">
+              ${escapeHtml(step.unit)}
+            </div>
+          `
+
+          : ""
+        }
+
+      </div>
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label class="form-label">
+        Đánh giá
+      </label>
+
+      <select
+        id="node-status-${order}-${index}"
+      >
+
+        <option value="">
+          -- Chọn đánh giá --
+        </option>
+
+        ${
+          options
+            .map(
+              option => `
+                <option
+                  value="${escapeHtml(option)}"
+                >
+                  ${escapeHtml(option)}
+                </option>
+              `
+            )
+            .join("")
+        }
+
+      </select>
+
+    </div>
+  `;
+
+
+  holder.appendChild(
+    row
+  );
+
+}
+
+
+window.addSensorNode =
+  addSensorNode;
+
+
+/* =========================================================
+   21. PHOTO PREVIEW
 ========================================================= */
 
 function previewPhotos(
@@ -1288,7 +1647,8 @@ function previewPhotos(
 
   const files =
     Array.from(
-      event.target.files || []
+      event.target.files ||
+      []
     );
 
 
@@ -1303,7 +1663,8 @@ function previewPhotos(
   }
 
 
-  preview.innerHTML = "";
+  preview.innerHTML =
+    "";
 
 
   files.forEach(file => {
@@ -1351,32 +1712,214 @@ function previewPhotos(
 
 
 /* =========================================================
-   18. COLLECT RESULTS
+   22. COLLECT RESULTS
 ========================================================= */
 
 function collectResults() {
 
-  const results = [];
+  const results =
+    [];
 
 
   for (
-    const step of currentProcedure
+    const step
+    of currentProcedure
   ) {
 
     const order =
-      Number(step.step_order);
-
-
-    const valueElement =
-      document.getElementById(
-        `value-${order}`
+      Number(
+        step.step_order
       );
 
 
-    const assessmentElement =
-      document.getElementById(
-        `assessment-${order}`
+    const type =
+      String(
+        step.input_type ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    let value =
+      "";
+
+
+    let assessment =
+      "";
+
+
+    /* =====================================================
+       MULTI NUMBER
+    ===================================================== */
+
+    if (
+      type ===
+      "multi_number_result"
+    ) {
+
+      const units =
+        String(
+          step.unit ||
+          ""
+        )
+          .split(",")
+          .map(
+            item =>
+              item.trim()
+          )
+          .filter(Boolean);
+
+
+      const values =
+        {};
+
+
+      units.forEach(
+        (unit, index) => {
+
+          const input =
+            document.getElementById(
+              `multi-${order}-${index}`
+            );
+
+
+          values[unit] =
+            input
+              ? input.value.trim()
+              : "";
+
+        }
       );
+
+
+      value =
+        values;
+
+
+      const assessmentElement =
+        document.getElementById(
+          `assessment-${order}`
+        );
+
+
+      assessment =
+        assessmentElement
+          ? assessmentElement.value.trim()
+          : "";
+
+    }
+
+
+    /* =====================================================
+       MULTI NODE
+    ===================================================== */
+
+    else if (
+      type ===
+      "multi_node_number"
+    ) {
+
+      const holder =
+        document.getElementById(
+          `nodes-${order}`
+        );
+
+
+      const nodes =
+        [];
+
+
+      if (holder) {
+
+        [
+          ...holder.children
+        ]
+          .forEach(
+            (_, index) => {
+
+              const name =
+                document.getElementById(
+                  `node-name-${order}-${index}`
+                )
+                  ?.value
+                  ?.trim()
+                || "";
+
+
+              const nodeValue =
+                document.getElementById(
+                  `node-value-${order}-${index}`
+                )
+                  ?.value
+                  ?.trim()
+                || "";
+
+
+              const status =
+                document.getElementById(
+                  `node-status-${order}-${index}`
+                )
+                  ?.value
+                  ?.trim()
+                || "";
+
+
+              nodes.push({
+
+                node:
+                  name,
+
+                value:
+                  nodeValue,
+
+                status:
+                  status
+
+              });
+
+            }
+          );
+
+      }
+
+
+      value =
+        nodes;
+
+    }
+
+
+    /* =====================================================
+       NORMAL
+    ===================================================== */
+
+    else {
+
+      const valueElement =
+        document.getElementById(
+          `value-${order}`
+        );
+
+
+      value =
+        valueElement
+          ? valueElement.value.trim()
+          : "";
+
+
+      const assessmentElement =
+        document.getElementById(
+          `assessment-${order}`
+        );
+
+
+      assessment =
+        assessmentElement
+          ? assessmentElement.value.trim()
+          : "";
+
+    }
 
 
     const noteElement =
@@ -1385,28 +1928,16 @@ function collectResults() {
       );
 
 
-    const photoElement =
-      document.getElementById(
-        `photo-${order}`
-      );
-
-
-    const value =
-      valueElement
-        ? valueElement.value.trim()
-        : "";
-
-
-    const assessment =
-      assessmentElement
-        ? assessmentElement.value.trim()
-        : "";
-
-
     const note =
       noteElement
         ? noteElement.value.trim()
         : "";
+
+
+    const photoElement =
+      document.getElementById(
+        `photo-${order}`
+      );
 
 
     const photoCount =
@@ -1415,30 +1946,141 @@ function collectResults() {
         : 0;
 
 
-    /* -----------------------------------------
-       Required result
-    ----------------------------------------- */
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (
-      toBoolean(step.required) &&
-      !value
+      toBoolean(
+        step.required
+      )
     ) {
 
-      alert(
-        `Bước ${order}: Bạn chưa nhập/chọn kết quả.`
-      );
+      if (
+        type ===
+        "multi_number_result"
+      ) {
+
+        const missing =
+          Object.values(
+            value
+          )
+            .some(
+              item =>
+                item === ""
+            );
 
 
-      valueElement?.focus();
+        if (missing) {
+
+          alert(
+            `Bước ${order}: Bạn chưa nhập đủ giá trị đo.`
+          );
+
+          return null;
+
+        }
 
 
-      return null;
+        if (
+          !assessment
+        ) {
+
+          alert(
+            `Bước ${order}: Bạn chưa chọn đánh giá.`
+          );
+
+          return null;
+
+        }
+
+      }
+
+
+      else if (
+        type ===
+        "multi_node_number"
+      ) {
+
+        if (
+          !Array.isArray(value)
+          ||
+          value.length === 0
+        ) {
+
+          alert(
+            `Bước ${order}: Chưa nhập mắt cảm biến.`
+          );
+
+          return null;
+
+        }
+
+
+        const invalid =
+          value.some(
+            item =>
+              !item.node
+              ||
+              !item.value
+              ||
+              !item.status
+          );
+
+
+        if (invalid) {
+
+          alert(
+            `Bước ${order}: Chưa nhập đầy đủ thông tin các mắt cảm biến.`
+          );
+
+          return null;
+
+        }
+
+      }
+
+
+      else {
+
+        if (!value) {
+
+          alert(
+            `Bước ${order}: Bạn chưa nhập/chọn kết quả.`
+          );
+
+          return null;
+
+        }
+
+
+        if (
+          type ===
+          "number_result"
+          &&
+          document.getElementById(
+            `assessment-${order}`
+          )
+          &&
+          !assessment
+        ) {
+
+          alert(
+            `Bước ${order}: Bạn chưa chọn đánh giá.`
+          );
+
+          return null;
+
+        }
+
+      }
+
     }
 
 
-    /* -----------------------------------------
-       Required photo
-    ----------------------------------------- */
+    /* =====================================================
+       PHOTO VALIDATION
+    ===================================================== */
 
     if (
       toBoolean(
@@ -1448,7 +2090,8 @@ function collectResults() {
 
       const min =
         Number(
-          step.photo_min || 1
+          step.photo_min ||
+          1
         );
 
 
@@ -1460,8 +2103,8 @@ function collectResults() {
           `Bước ${order}: Cần tối thiểu ${min} ảnh.`
         );
 
-
         return null;
+
       }
 
     }
@@ -1473,7 +2116,11 @@ function collectResults() {
         order,
 
       step_title:
-        step.step_title || "",
+        step.step_title ||
+        "",
+
+      input_type:
+        type,
 
       result:
         value,
@@ -1485,7 +2132,8 @@ function collectResults() {
         note,
 
       unit:
-        step.unit || "",
+        step.unit ||
+        "",
 
       photo_count:
         photoCount
@@ -1501,7 +2149,7 @@ function collectResults() {
 
 
 /* =========================================================
-   19. SAVE BUTTON
+   23. SAVE
 ========================================================= */
 
 async function saveInspection() {
@@ -1525,6 +2173,12 @@ async function saveInspection() {
   }
 
 
+  const realSensorType =
+    normalizeRawSensorType(
+      selectedDevice.sensor_type
+    );
+
+
   inspectionResults[
     selectedDevice.code
   ] = {
@@ -1532,8 +2186,16 @@ async function saveInspection() {
     job_id:
       jobId,
 
+    device_code:
+      selectedDevice.code,
+
     sensor_type:
-      selectedType,
+      realSensorType,
+
+    procedure_code:
+      currentProcedure[0]
+        ?.procedure_code
+      || "",
 
     device:
       selectedDevice,
@@ -1542,7 +2204,8 @@ async function saveInspection() {
       results,
 
     saved_at:
-      new Date().toISOString()
+      new Date()
+        .toISOString()
 
   };
 
@@ -1556,15 +2219,14 @@ async function saveInspection() {
 
 
   alert(
-    `Đã kiểm tra đầy đủ ${selectedDevice.code}.\n\n` +
-    `Giai đoạn tiếp theo sẽ lưu kết quả và ảnh lên hệ thống.`
+    `Đã hoàn thành kiểm tra ${selectedDevice.code}.`
   );
 
 }
 
 
 /* =========================================================
-   20. HELPERS
+   24. HELPERS
 ========================================================= */
 
 function parseOptions(value) {
@@ -1574,14 +2236,19 @@ function parseOptions(value) {
   }
 
 
-  if (Array.isArray(value)) {
+  if (
+    Array.isArray(value)
+  ) {
     return value;
   }
 
 
   return String(value)
     .split("|")
-    .map(item => item.trim())
+    .map(
+      item =>
+        item.trim()
+    )
     .filter(Boolean);
 
 }
@@ -1590,7 +2257,8 @@ function parseOptions(value) {
 function toBoolean(value) {
 
   if (
-    value === true ||
+    value === true
+    ||
     value === 1
   ) {
     return true;
@@ -1604,39 +2272,11 @@ function toBoolean(value) {
 
 
   return (
-    normalized === "true" ||
-    normalized === "1" ||
+    normalized === "true"
+    ||
+    normalized === "1"
+    ||
     normalized === "yes"
-  );
-
-}
-
-
-function getSensorTypeName(type) {
-
-  const names = {
-
-    PZ:
-      "Cảm biến ứng suất",
-
-    DPL:
-      "DPL – Cảm biến 4–20 mA",
-
-    EX:
-      "Giãn kế đa điểm",
-
-    TEMP:
-      "Cảm biến nhiệt độ",
-
-    TEMPERATURE:
-      "Cảm biến nhiệt độ"
-
-  };
-
-
-  return (
-    names[type] ||
-    type
   );
 
 }
@@ -1662,8 +2302,10 @@ function formatStatus(status) {
 
 
   return (
-    map[status] ||
-    status ||
+    map[status]
+    ||
+    status
+    ||
     "-"
   );
 
@@ -1676,7 +2318,9 @@ function setText(
 ) {
 
   const element =
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
 
 
   if (element) {
@@ -1692,7 +2336,9 @@ function setText(
 function showElement(id) {
 
   const element =
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
 
 
   if (element) {
@@ -1709,7 +2355,9 @@ function showElement(id) {
 function hideElement(id) {
 
   const element =
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
 
 
   if (element) {
@@ -1743,7 +2391,6 @@ function setLoading(text) {
     <div>
       ${escapeHtml(text)}
     </div>
-
   `;
 
 
@@ -1768,7 +2415,6 @@ function showError(message) {
       <div class="error-box">
         ${escapeHtml(message)}
       </div>
-
     `;
 
   }
@@ -1806,8 +2452,11 @@ function escapeHtml(value) {
 
 
 /* =========================================================
-   21. EXPOSE SAVE FUNCTION
+   25. EXPOSE FUNCTIONS
 ========================================================= */
 
 window.saveInspection =
   saveInspection;
+
+window.addSensorNode =
+  addSensorNode;
