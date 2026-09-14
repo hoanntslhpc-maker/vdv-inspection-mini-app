@@ -27,6 +27,7 @@ const SAVE_INSPECTION_API =
   `${API_BASE}/save-inspection`;
 
 
+
 /* =========================================================
    2. GLOBAL STATE
 ========================================================= */
@@ -50,8 +51,9 @@ let savedInspectionRows = [];
 let editingExistingInspection = false;
 
 
+
 /* =========================================================
-   3. JOB ID FROM URL
+   3. JOB ID
 ========================================================= */
 
 const params =
@@ -61,6 +63,7 @@ const params =
 
 const jobId =
   params.get("job");
+
 
 
 /* =========================================================
@@ -74,7 +77,7 @@ document.addEventListener(
     if (!jobId) {
 
       showError(
-        "Không tìm thấy mã công việc trong URL."
+        "Không tìm thấy mã công việc."
       );
 
       return;
@@ -84,6 +87,7 @@ document.addEventListener(
 
   }
 );
+
 
 
 /* =========================================================
@@ -100,7 +104,7 @@ async function loadJob() {
 
     const response =
       await fetch(
-        `${GET_JOB_API}?job=${encodeURIComponent(jobId)}`
+        `${GET_JOB_API}?job=${encodeURIComponent(jobId)}&t=${Date.now()}`
       );
 
     if (!response.ok) {
@@ -108,6 +112,7 @@ async function loadJob() {
       throw new Error(
         `HTTP ${response.status}`
       );
+
     }
 
     const rawText =
@@ -118,6 +123,7 @@ async function loadJob() {
       throw new Error(
         "Không tìm thấy dữ liệu công việc."
       );
+
     }
 
     const data =
@@ -133,6 +139,7 @@ async function loadJob() {
       throw new Error(
         "Không tìm thấy công việc."
       );
+
     }
 
 
@@ -147,15 +154,17 @@ async function loadJob() {
       throw new Error(
         "Công việc không có thiết bị."
       );
+
     }
 
 
-    /* Đọc trạng thái các thiết bị đã kiểm tra */
+    /*
+      RẤT QUAN TRỌNG:
+      đọc trạng thái thiết bị trước khi render.
+    */
 
     await loadDeviceStatuses();
 
-
-    /* Gom nhóm thiết bị */
 
     deviceGroups =
       groupDevicesByType(
@@ -177,7 +186,8 @@ async function loadJob() {
     );
 
     showError(
-      "Không tải được công việc.\n" +
+      "Không tải được công việc.\n"
+      +
       error.message
     );
 
@@ -186,11 +196,16 @@ async function loadJob() {
 }
 
 
+
 /* =========================================================
    6. LOAD DEVICE STATUS
 ========================================================= */
 
 async function loadDeviceStatuses() {
+
+  /*
+    Không cache dữ liệu cũ.
+  */
 
   deviceStatusMap = {};
 
@@ -198,16 +213,21 @@ async function loadDeviceStatuses() {
 
     const response =
       await fetch(
-        `${GET_DEVICE_STATUS_API}?job=${encodeURIComponent(jobId)}`
+
+        `${GET_DEVICE_STATUS_API}`
+        +
+        `?job=${encodeURIComponent(jobId)}`
+        +
+        `&t=${Date.now()}`
+
       );
 
     if (!response.ok) {
 
-      console.warn(
-        "Không tải được trạng thái thiết bị."
+      throw new Error(
+        `HTTP ${response.status}`
       );
 
-      return;
     }
 
     const rawText =
@@ -216,6 +236,7 @@ async function loadDeviceStatuses() {
     if (!rawText.trim()) {
 
       return;
+
     }
 
     const data =
@@ -237,16 +258,29 @@ async function loadDeviceStatuses() {
         const code =
           String(
             row.device_code || ""
-          ).trim();
+          )
+            .trim();
 
         if (!code) {
 
           return;
+
         }
 
         deviceStatusMap[
           code
-        ] = row;
+        ] = {
+
+          ...row,
+
+          status:
+            String(
+              row.status || ""
+            )
+              .trim()
+              .toUpperCase()
+
+        };
 
       }
     );
@@ -271,20 +305,25 @@ async function loadDeviceStatuses() {
 }
 
 
+
 /* =========================================================
    7. PARSE DEVICES
 ========================================================= */
 
 function parseDevices(value) {
 
-  if (Array.isArray(value)) {
+  if (
+    Array.isArray(value)
+  ) {
 
     return value;
+
   }
 
   if (!value) {
 
     return [];
+
   }
 
   try {
@@ -301,16 +340,20 @@ function parseDevices(value) {
   catch {
 
     return [];
+
   }
 
 }
+
 
 
 /* =========================================================
    8. SENSOR TYPE
 ========================================================= */
 
-function normalizeRawSensorType(type) {
+function normalizeRawSensorType(
+  type
+) {
 
   return String(
     type || ""
@@ -319,6 +362,7 @@ function normalizeRawSensorType(type) {
     .toUpperCase();
 
 }
+
 
 
 /* =========================================================
@@ -336,11 +380,13 @@ function getDeviceGroupKey(
 
 
   const stressTypes = [
+
     "JE",
     "SG",
     "ST",
     "SGS",
     "STS"
+
   ];
 
 
@@ -349,6 +395,7 @@ function getDeviceGroupKey(
   ) {
 
     return "STRESS_GROUP";
+
   }
 
 
@@ -358,6 +405,7 @@ function getDeviceGroupKey(
   );
 
 }
+
 
 
 function getDeviceGroupName(
@@ -385,14 +433,18 @@ function getDeviceGroupName(
 
 
   return (
-    names[groupKey] ||
+    names[groupKey]
+    ||
     groupKey
   );
 
 }
 
 
-function groupDevicesByType(list) {
+
+function groupDevicesByType(
+  list
+) {
 
   const groups = {};
 
@@ -409,6 +461,7 @@ function groupDevicesByType(list) {
       if (!groups[key]) {
 
         groups[key] = [];
+
       }
 
 
@@ -425,6 +478,7 @@ function groupDevicesByType(list) {
 }
 
 
+
 /* =========================================================
    10. RENDER JOB
 ========================================================= */
@@ -436,31 +490,34 @@ function renderJob() {
       "loading"
     );
 
-
   if (loading) {
 
     loading.style.display =
       "none";
+
   }
 
 
   setText(
     "jobId",
-    currentJob.job_id ||
+    currentJob.job_id
+    ||
     jobId
   );
 
 
   setText(
     "jobRequester",
-    currentJob.requester_name ||
+    currentJob.requester_name
+    ||
     "Không xác định"
   );
 
 
   setText(
     "jobRequest",
-    currentJob.request ||
+    currentJob.request
+    ||
     "-"
   );
 
@@ -491,6 +548,7 @@ function renderJob() {
 }
 
 
+
 /* =========================================================
    11. RENDER DEVICE TYPES
 ========================================================= */
@@ -506,6 +564,7 @@ function renderDeviceTypes() {
   if (!container) {
 
     return;
+
   }
 
 
@@ -536,11 +595,26 @@ function renderDeviceTypes() {
 
         const completedCount =
           list.filter(
-            device =>
-              deviceStatusMap[
-                device.code
-              ]?.status
-              === "COMPLETED"
+            device => {
+
+              const code =
+                String(
+                  device.code || ""
+                ).trim();
+
+              return (
+                String(
+                  deviceStatusMap[
+                    code
+                  ]?.status || ""
+                )
+                  .trim()
+                  .toUpperCase()
+                ===
+                "COMPLETED"
+              );
+
+            }
           ).length;
 
 
@@ -563,7 +637,9 @@ function renderDeviceTypes() {
 
             ${
               completedCount > 0
+
                 ? ` • ✅ ${completedCount} đã kiểm tra`
+
                 : ""
             }
 
@@ -574,9 +650,9 @@ function renderDeviceTypes() {
 
         button.addEventListener(
           "click",
-          () => {
+          async () => {
 
-            selectDeviceGroup(
+            await selectDeviceGroup(
               groupKey,
               button
             );
@@ -595,11 +671,12 @@ function renderDeviceTypes() {
 }
 
 
+
 /* =========================================================
    12. SELECT DEVICE GROUP
 ========================================================= */
 
-function selectDeviceGroup(
+async function selectDeviceGroup(
   groupKey,
   button
 ) {
@@ -639,23 +716,76 @@ function selectDeviceGroup(
     );
 
 
-  button.classList.add(
-    "active"
-  );
+  if (button) {
+
+    button.classList.add(
+      "active"
+    );
+
+  }
+
+
+  /*
+    MỖI LẦN CHỌN NHÓM:
+    đọc lại trạng thái mới nhất.
+  */
+
+  await loadDeviceStatuses();
+
+
+  /*
+    Cập nhật số lượng đã kiểm tra
+    của các nhóm.
+  */
+
+  renderDeviceTypes();
+
+
+  /*
+    Sau renderDeviceTypes(),
+    active class bị tạo lại.
+    Đánh active lại đúng nhóm.
+  */
+
+  document
+    .querySelectorAll(
+      ".device-type-button"
+    )
+    .forEach(
+      btn => {
+
+        const title =
+          btn.querySelector(
+            ".device-type-name"
+          )
+            ?.textContent
+            ?.trim();
+
+        if (
+          title ===
+          getDeviceGroupName(
+            groupKey
+          )
+        ) {
+
+          btn.classList.add(
+            "active"
+          );
+
+        }
+
+      }
+    );
 
 
   renderDevices(
     deviceGroups[
       groupKey
-    ] || []
+    ]
+    ||
+    []
   );
 
-
-  /*
-    Khi đổi nhóm thiết bị:
-    ẩn phần thiết bị đang kiểm tra
-    và quy trình cũ.
-  */
 
   hideElement(
     "selectedDeviceSection"
@@ -670,6 +800,7 @@ function selectDeviceGroup(
   );
 
 }
+
 
 
 /* =========================================================
@@ -693,6 +824,7 @@ function renderDevices(list) {
   if (!container) {
 
     return;
+
   }
 
 
@@ -719,8 +851,11 @@ function renderDevices(list) {
 
 
       const code =
-        device.code ||
-        "Không có mã";
+        String(
+          device.code ||
+          "Không có mã"
+        )
+          .trim();
 
 
       const type =
@@ -762,8 +897,15 @@ function renderDevices(list) {
 
 
       const isCompleted =
-        savedStatus?.status
-        === "COMPLETED";
+        String(
+          savedStatus?.status
+          ||
+          ""
+        )
+          .trim()
+          .toUpperCase()
+        ===
+        "COMPLETED";
 
 
       button.innerHTML = `
@@ -851,9 +993,11 @@ function renderDevices(list) {
     section.classList.remove(
       "hidden"
     );
+
   }
 
 }
+
 
 
 /* =========================================================
@@ -892,15 +1036,14 @@ async function selectDevice(
     );
 
 
-  button.classList.add(
-    "active"
-  );
+  if (button) {
 
+    button.classList.add(
+      "active"
+    );
 
-  /*
-    HIỆN Ô THIẾT BỊ ĐANG KIỂM TRA
-    ngay trước mục 3.
-  */
+  }
+
 
   showElement(
     "selectedDeviceSection"
@@ -925,6 +1068,7 @@ async function selectDevice(
   );
 
 }
+
 
 
 /* =========================================================
@@ -969,12 +1113,9 @@ function showCompletedDevice(
     button.classList.add(
       "active"
     );
+
   }
 
-
-  /*
-    HIỆN Ô THIẾT BỊ ĐANG KIỂM TRA
-  */
 
   showElement(
     "selectedDeviceSection"
@@ -1005,6 +1146,7 @@ function showCompletedDevice(
   ) {
 
     return;
+
   }
 
 
@@ -1052,7 +1194,8 @@ function showCompletedDevice(
         <strong>Người kiểm tra:</strong>
 
         ${escapeHtml(
-          status.inspector_name ||
+          status?.inspector_name
+          ||
           "Không xác định"
         )}
 
@@ -1065,7 +1208,7 @@ function showCompletedDevice(
 
         ${escapeHtml(
           formatDateTime(
-            status.checked_at
+            status?.checked_at
           )
         )}
 
@@ -1102,6 +1245,7 @@ function showCompletedDevice(
 }
 
 
+
 /* =========================================================
    16. LOAD PROCEDURE
 ========================================================= */
@@ -1133,6 +1277,7 @@ async function loadProcedure(
     section.classList.remove(
       "hidden"
     );
+
   }
 
 
@@ -1149,6 +1294,7 @@ async function loadProcedure(
       </div>
 
     `;
+
   }
 
 
@@ -1156,7 +1302,13 @@ async function loadProcedure(
 
     const response =
       await fetch(
-        `${GET_PROCEDURE_API}?type=${encodeURIComponent(type)}`
+
+        `${GET_PROCEDURE_API}`
+        +
+        `?type=${encodeURIComponent(type)}`
+        +
+        `&t=${Date.now()}`
+
       );
 
 
@@ -1165,6 +1317,7 @@ async function loadProcedure(
       throw new Error(
         `HTTP ${response.status}`
       );
+
     }
 
 
@@ -1177,6 +1330,7 @@ async function loadProcedure(
       throw new Error(
         `Không tìm thấy quy trình cho ${type}.`
       );
+
     }
 
 
@@ -1192,6 +1346,7 @@ async function loadProcedure(
         data
           ? [data]
           : [];
+
     }
 
 
@@ -1212,6 +1367,7 @@ async function loadProcedure(
       throw new Error(
         "Quy trình trống."
       );
+
     }
 
 
@@ -1244,11 +1400,13 @@ async function loadProcedure(
         </div>
 
       `;
+
     }
 
   }
 
 }
+
 
 
 /* =========================================================
@@ -1266,6 +1424,7 @@ function renderProcedure() {
   if (!container) {
 
     return;
+
   }
 
 
@@ -1291,6 +1450,7 @@ function renderProcedure() {
   );
 
 }
+
 
 
 /* =========================================================
@@ -1357,7 +1517,7 @@ function createProcedureStep(
       <div class="step-info">
 
         <div class="step-info-title">
-          Phương pháp thực hiện
+          PHƯƠNG PHÁP THỰC HIỆN
         </div>
 
         <div class="step-info-content">
@@ -1375,7 +1535,7 @@ function createProcedureStep(
       <div class="step-info">
 
         <div class="step-info-title">
-          Tiêu chuẩn đánh giá
+          TIÊU CHUẨN ĐÁNH GIÁ
         </div>
 
         <div class="step-info-content">
@@ -1497,6 +1657,7 @@ function createProcedureStep(
 }
 
 
+
 /* =========================================================
    19. RENDER INPUT
 ========================================================= */
@@ -1545,7 +1706,9 @@ function renderInput(
 
           ${
             type === "final_assessment"
+
               ? "Đánh giá tình trạng"
+
               : "Kết quả kiểm tra"
           }
 
@@ -1584,15 +1747,16 @@ function renderInput(
 
     `;
 
-
     return;
+
   }
 
 
   /* NUMBER */
 
   if (
-    type === "number_result"
+    type ===
+    "number_result"
   ) {
 
     container.innerHTML = `
@@ -1682,21 +1846,21 @@ function renderInput(
 
     `;
 
-
     return;
+
   }
 
 
   /* MULTI NUMBER */
 
   if (
-    type === "multi_number_result"
+    type ===
+    "multi_number_result"
   ) {
 
     const units =
       String(
-        step.unit ||
-        ""
+        step.unit || ""
       )
         .split(",")
         .map(
@@ -1782,15 +1946,16 @@ function renderInput(
 
       `;
 
-
     return;
+
   }
 
 
   /* MULTI NODE */
 
   if (
-    type === "multi_node_number"
+    type ===
+    "multi_node_number"
   ) {
 
     container.innerHTML = `
@@ -1816,8 +1981,8 @@ function renderInput(
       order
     );
 
-
     return;
+
   }
 
 
@@ -1843,6 +2008,7 @@ function renderInput(
 }
 
 
+
 /* =========================================================
    20. ADD SENSOR NODE
 ========================================================= */
@@ -1858,6 +2024,7 @@ function addSensorNode(order) {
   if (!holder) {
 
     return;
+
   }
 
 
@@ -1875,6 +2042,7 @@ function addSensorNode(order) {
   if (!step) {
 
     return;
+
   }
 
 
@@ -1988,6 +2156,7 @@ function addSensorNode(order) {
 }
 
 
+
 /* =========================================================
    21. FETCH SAVED INSPECTION
 ========================================================= */
@@ -1997,6 +2166,7 @@ async function fetchSavedInspection() {
   if (!selectedDevice) {
 
     return [];
+
   }
 
 
@@ -2008,6 +2178,8 @@ async function fetchSavedInspection() {
       `?job=${encodeURIComponent(jobId)}`
       +
       `&device=${encodeURIComponent(selectedDevice.code)}`
+      +
+      `&t=${Date.now()}`
 
     );
 
@@ -2017,6 +2189,7 @@ async function fetchSavedInspection() {
     throw new Error(
       `HTTP ${response.status}`
     );
+
   }
 
 
@@ -2025,7 +2198,9 @@ async function fetchSavedInspection() {
 
 
   return Array.isArray(data)
+
     ? data
+
     : (
         Array.isArray(data.results)
           ? data.results
@@ -2035,8 +2210,9 @@ async function fetchSavedInspection() {
 }
 
 
+
 /* =========================================================
-   22. VIEW SAVED RESULTS
+   22. VIEW SAVED RESULT
 ========================================================= */
 
 window.viewSavedResult =
@@ -2053,6 +2229,7 @@ window.viewSavedResult =
         throw new Error(
           "Không tìm thấy kết quả đã lưu."
         );
+
       }
 
 
@@ -2065,6 +2242,7 @@ window.viewSavedResult =
       if (!container) {
 
         return;
+
       }
 
 
@@ -2120,7 +2298,6 @@ window.viewSavedResult =
 
 
               <div class="step-body">
-
 
                 <div class="step-info">
 
@@ -2260,7 +2437,8 @@ window.viewSavedResult =
     catch (error) {
 
       alert(
-        "Không tải được kết quả.\n\n" +
+        "Không tải được kết quả.\n\n"
+        +
         error.message
       );
 
@@ -2269,8 +2447,9 @@ window.viewSavedResult =
   };
 
 
+
 /* =========================================================
-   23. EDIT SAVED RESULT
+   23. EDIT SAVED INSPECTION
 ========================================================= */
 
 window.editSavedInspection =
@@ -2287,6 +2466,7 @@ window.editSavedInspection =
         throw new Error(
           "Không tìm thấy dữ liệu cũ."
         );
+
       }
 
 
@@ -2324,7 +2504,8 @@ window.editSavedInspection =
     catch (error) {
 
       alert(
-        "Không tải được dữ liệu cũ.\n\n" +
+        "Không tải được dữ liệu cũ.\n\n"
+        +
         error.message
       );
 
@@ -2333,8 +2514,9 @@ window.editSavedInspection =
   };
 
 
+
 /* =========================================================
-   24. PREFILL SAVED RESULTS
+   24. PREFILL SAVED INSPECTION
 ========================================================= */
 
 function prefillSavedInspection(
@@ -2354,7 +2536,9 @@ function prefillSavedInspection(
       const step =
         currentProcedure.find(
           item =>
-            Number(item.step_order)
+            Number(
+              item.step_order
+            )
             ===
             order
         );
@@ -2363,6 +2547,7 @@ function prefillSavedInspection(
       if (!step) {
 
         return;
+
       }
 
 
@@ -2376,12 +2561,14 @@ function prefillSavedInspection(
 
 
       const resultValue =
-        row.result_value ??
+        row.result_value
+        ??
         "";
 
 
       const resultStatus =
-        row.result_status ??
+        row.result_status
+        ??
         "";
 
 
@@ -2394,12 +2581,10 @@ function prefillSavedInspection(
       if (note) {
 
         note.value =
-          row.note ||
-          "";
+          row.note || "";
+
       }
 
-
-      /* SELECT */
 
       if (
         type === "select"
@@ -2419,15 +2604,15 @@ function prefillSavedInspection(
 
           input.value =
             resultValue;
+
         }
 
       }
 
 
-      /* NUMBER */
-
       else if (
-        type === "number_result"
+        type ===
+        "number_result"
       ) {
 
         const input =
@@ -2446,6 +2631,7 @@ function prefillSavedInspection(
 
           input.value =
             resultValue;
+
         }
 
 
@@ -2453,15 +2639,15 @@ function prefillSavedInspection(
 
           assessment.value =
             resultStatus;
+
         }
 
       }
 
 
-      /* MULTI NUMBER */
-
       else if (
-        type === "multi_number_result"
+        type ===
+        "multi_number_result"
       ) {
 
         let values = {};
@@ -2470,10 +2656,13 @@ function prefillSavedInspection(
         try {
 
           values =
-            typeof resultValue === "string"
+            typeof resultValue
+            === "string"
+
               ? JSON.parse(
                   resultValue
                 )
+
               : resultValue;
 
         }
@@ -2481,13 +2670,13 @@ function prefillSavedInspection(
         catch {
 
           values = {};
+
         }
 
 
         const units =
           String(
-            step.unit ||
-            ""
+            step.unit || ""
           )
             .split(",")
             .map(
@@ -2500,7 +2689,6 @@ function prefillSavedInspection(
         units.forEach(
           (unit, index) => {
 
-
             const input =
               document.getElementById(
                 `multi-${order}-${index}`
@@ -2510,8 +2698,10 @@ function prefillSavedInspection(
             if (input) {
 
               input.value =
-                values?.[unit] ??
+                values?.[unit]
+                ??
                 "";
+
             }
 
           }
@@ -2528,15 +2718,15 @@ function prefillSavedInspection(
 
           assessment.value =
             resultStatus;
+
         }
 
       }
 
 
-      /* MULTI NODE */
-
       else if (
-        type === "multi_node_number"
+        type ===
+        "multi_node_number"
       ) {
 
         let nodes = [];
@@ -2545,10 +2735,13 @@ function prefillSavedInspection(
         try {
 
           nodes =
-            typeof resultValue === "string"
+            typeof resultValue
+            === "string"
+
               ? JSON.parse(
                   resultValue
                 )
+
               : resultValue;
 
         }
@@ -2556,6 +2749,7 @@ function prefillSavedInspection(
         catch {
 
           nodes = [];
+
         }
 
 
@@ -2573,7 +2767,6 @@ function prefillSavedInspection(
 
           nodes.forEach(
             node => {
-
 
               addSensorNode(
                 order
@@ -2607,24 +2800,30 @@ function prefillSavedInspection(
               if (name) {
 
                 name.value =
-                  node.node ||
+                  node.node
+                  ||
                   "";
+
               }
 
 
               if (value) {
 
                 value.value =
-                  node.value ||
+                  node.value
+                  ||
                   "";
+
               }
 
 
               if (status) {
 
                 status.value =
-                  node.status ||
+                  node.status
+                  ||
                   "";
+
               }
 
             }
@@ -2634,8 +2833,6 @@ function prefillSavedInspection(
 
       }
 
-
-      /* OLD PHOTOS */
 
       const urls =
         parsePhotoUrls(
@@ -2650,7 +2847,8 @@ function prefillSavedInspection(
 
 
       if (
-        oldPhotoBox &&
+        oldPhotoBox
+        &&
         urls.length
       ) {
 
@@ -2668,7 +2866,6 @@ function prefillSavedInspection(
             ${urls.length}
 
           </div>
-
 
           ${
 
@@ -2705,6 +2902,7 @@ function prefillSavedInspection(
 }
 
 
+
 /* =========================================================
    25. PHOTO PREVIEW
 ========================================================= */
@@ -2723,6 +2921,7 @@ function previewPhotos(
   if (!preview) {
 
     return;
+
   }
 
 
@@ -2731,7 +2930,8 @@ function previewPhotos(
 
 
   Array.from(
-    event.target.files ||
+    event.target.files
+    ||
     []
   )
     .forEach(
@@ -2745,6 +2945,7 @@ function previewPhotos(
         ) {
 
           return;
+
         }
 
 
@@ -2783,6 +2984,7 @@ function previewPhotos(
 }
 
 
+
 /* =========================================================
    26. GET SAVED ROW
 ========================================================= */
@@ -2793,12 +2995,17 @@ function getSavedRow(
 
   return savedInspectionRows.find(
     row =>
-      Number(row.step_order)
+      Number(
+        row.step_order
+      )
       ===
-      Number(stepOrder)
+      Number(
+        stepOrder
+      )
   );
 
 }
+
 
 
 /* =========================================================
@@ -2807,8 +3014,7 @@ function getSavedRow(
 
 function collectResults() {
 
-  const results =
-    [];
+  const results = [];
 
 
   for (
@@ -2840,8 +3046,6 @@ function collectResults() {
       "";
 
 
-    /* MULTI NUMBER */
-
     if (
       type ===
       "multi_number_result"
@@ -2860,13 +3064,11 @@ function collectResults() {
           .filter(Boolean);
 
 
-      const values =
-        {};
+      const values = {};
 
 
       units.forEach(
         (unit, index) => {
-
 
           const input =
             document.getElementById(
@@ -2899,8 +3101,6 @@ function collectResults() {
     }
 
 
-    /* MULTI NODE */
-
     else if (
       type ===
       "multi_node_number"
@@ -2912,8 +3112,7 @@ function collectResults() {
         );
 
 
-      const nodes =
-        [];
+      const nodes = [];
 
 
       if (holder) {
@@ -2928,7 +3127,6 @@ function collectResults() {
               nodes.push({
 
                 node:
-
                   document.getElementById(
                     `node-name-${order}-${index}`
                   )
@@ -2937,9 +3135,7 @@ function collectResults() {
                   ||
                   "",
 
-
                 value:
-
                   document.getElementById(
                     `node-value-${order}-${index}`
                   )
@@ -2948,9 +3144,7 @@ function collectResults() {
                   ||
                   "",
 
-
                 status:
-
                   document.getElementById(
                     `node-status-${order}-${index}`
                   )
@@ -2972,8 +3166,6 @@ function collectResults() {
 
     }
 
-
-    /* NORMAL */
 
     else {
 
@@ -3063,6 +3255,7 @@ function collectResults() {
           );
 
           return null;
+
         }
 
 
@@ -3073,6 +3266,7 @@ function collectResults() {
           );
 
           return null;
+
         }
 
       }
@@ -3084,11 +3278,14 @@ function collectResults() {
       ) {
 
         if (
-          !value.length ||
+          !value.length
+          ||
           value.some(
             item =>
-              !item.node ||
-              !item.value ||
+              !item.node
+              ||
+              !item.value
+              ||
               !item.status
           )
         ) {
@@ -3098,6 +3295,7 @@ function collectResults() {
           );
 
           return null;
+
         }
 
       }
@@ -3112,6 +3310,7 @@ function collectResults() {
           );
 
           return null;
+
         }
 
 
@@ -3131,6 +3330,7 @@ function collectResults() {
           );
 
           return null;
+
         }
 
       }
@@ -3166,6 +3366,7 @@ function collectResults() {
         );
 
         return null;
+
       }
 
     }
@@ -3177,8 +3378,7 @@ function collectResults() {
         order,
 
       step_title:
-        step.step_title ||
-        "",
+        step.step_title || "",
 
       result:
         value,
@@ -3190,8 +3390,7 @@ function collectResults() {
         note,
 
       unit:
-        step.unit ||
-        "",
+        step.unit || "",
 
       existing_photo_urls:
         oldPhotoUrls
@@ -3206,21 +3405,19 @@ function collectResults() {
 }
 
 
+
 /* =========================================================
    28. SAVE INSPECTION
 ========================================================= */
 
 async function saveInspection(event) {
 
-  /*
-    Chặn submit / reload
-  */
-
   if (event) {
 
     event.preventDefault();
 
     event.stopPropagation();
+
   }
 
 
@@ -3231,6 +3428,7 @@ async function saveInspection(event) {
     );
 
     return;
+
   }
 
 
@@ -3241,7 +3439,29 @@ async function saveInspection(event) {
   if (!results) {
 
     return;
+
   }
+
+
+  /*
+    LƯU LẠI TRẠNG THÁI TRƯỚC KHI REQUEST
+    để tránh selectedDevice thay đổi.
+  */
+
+  const savedDevice = {
+    ...selectedDevice
+  };
+
+
+  const savedDeviceCode =
+    String(
+      savedDevice.code || ""
+    )
+      .trim();
+
+
+  const wasEditing =
+    editingExistingInspection;
 
 
   const telegramUser =
@@ -3267,55 +3487,49 @@ async function saveInspection(event) {
     "Không xác định";
 
 
-  /* PAYLOAD */
+  const nowIso =
+    new Date()
+      .toISOString();
+
 
   const payload = {
 
     mode:
-
-      editingExistingInspection
+      wasEditing
         ? "EDIT"
         : "CREATE",
-
 
     job_id:
       jobId,
 
-
     device_code:
-      selectedDevice.code,
-
+      savedDeviceCode,
 
     sensor_type:
       normalizeRawSensorType(
-        selectedDevice.sensor_type
+        savedDevice.sensor_type
       ),
 
-
     procedure_code:
-      currentProcedure[0]
-        ?.procedure_code
-      ||
-      "",
-
+      String(
+        currentProcedure[0]
+          ?.procedure_code
+        ||
+        ""
+      ).trim(),
 
     inspector_id:
       telegramUser.id
       ||
       "",
 
-
     inspector_name:
       inspectorName,
 
-
     checked_at:
-      new Date()
-        .toISOString(),
-
+      nowIso,
 
     results:
-
       results.map(
         result => ({
 
@@ -3348,8 +3562,6 @@ async function saveInspection(event) {
   };
 
 
-  /* FORMDATA */
-
   const formData =
     new FormData();
 
@@ -3362,7 +3574,9 @@ async function saveInspection(event) {
   );
 
 
-  /* ADD NEW PHOTOS */
+  /*
+    ADD NEW PHOTOS
+  */
 
   for (
     const step
@@ -3383,11 +3597,13 @@ async function saveInspection(event) {
 
 
     if (
-      !input ||
+      !input
+      ||
       !input.files
     ) {
 
       continue;
+
     }
 
 
@@ -3414,8 +3630,6 @@ async function saveInspection(event) {
   }
 
 
-  /* BUTTON */
-
   const saveButton =
     document.getElementById(
       "saveInspectionButton"
@@ -3426,7 +3640,6 @@ async function saveInspection(event) {
 
     saveButton.disabled =
       true;
-
 
     saveButton.textContent =
       "⏳ ĐANG LƯU...";
@@ -3447,12 +3660,6 @@ async function saveInspection(event) {
       payload
     );
 
-
-    /*
-      Không timeout.
-      Không AbortController.
-      Không tự set Content-Type.
-    */
 
     const response =
       await fetch(
@@ -3488,30 +3695,81 @@ async function saveInspection(event) {
     if (!response.ok) {
 
       throw new Error(
-        responseText ||
+        responseText
+        ||
         `HTTP ${response.status}`
       );
+
     }
 
 
+    /* =====================================================
+       QUAN TRỌNG NHẤT
+
+       n8n hiện đang Respond Immediately.
+       Vì vậy sau khi browser nhận HTTP 200,
+       workflow phía sau có thể vẫn đang tiếp tục xử lý.
+
+       Ta đánh dấu COMPLETED NGAY TRONG RAM
+       để người dùng có thể chuyển thiết bị khác
+       mà không mất trạng thái vừa lưu.
+    ===================================================== */
+
+
+    deviceStatusMap[
+      savedDeviceCode
+    ] = {
+
+      ...(
+        deviceStatusMap[
+          savedDeviceCode
+        ]
+        ||
+        {}
+      ),
+
+      job_id:
+        jobId,
+
+      device_code:
+        savedDeviceCode,
+
+      sensor_type:
+        normalizeRawSensorType(
+          savedDevice.sensor_type
+        ),
+
+      procedure_code:
+        String(
+          currentProcedure[0]
+            ?.procedure_code
+          ||
+          ""
+        ).trim(),
+
+      status:
+        "COMPLETED",
+
+      inspector_id:
+        telegramUser.id
+        ||
+        "",
+
+      inspector_name:
+        inspectorName,
+
+      checked_at:
+        nowIso,
+
+      updated_at:
+        nowIso
+
+    };
+
+
     /*
-      Đọc lại trạng thái thật
-      từ backend.
+      Thoát trạng thái edit.
     */
-
-    await loadDeviceStatuses();
-
-
-    alert(
-
-      editingExistingInspection
-
-        ? `✅ Đã cập nhật kết quả ${selectedDevice.code}.`
-
-        : `✅ Đã lưu kết quả ${selectedDevice.code}.`
-
-    );
-
 
     editingExistingInspection =
       false;
@@ -3522,14 +3780,16 @@ async function saveInspection(event) {
 
 
     /*
-      Refresh số thiết bị đã kiểm tra.
+      Cập nhật ngay số lượng đã kiểm tra
+      ở phần loại thiết bị.
     */
 
     renderDeviceTypes();
 
 
     /*
-      Refresh danh sách thiết bị.
+      Cập nhật ngay danh sách thiết bị
+      của nhóm hiện tại.
     */
 
     if (selectedGroup) {
@@ -3537,42 +3797,121 @@ async function saveInspection(event) {
       renderDevices(
         deviceGroups[
           selectedGroup
-        ] || []
+        ]
+        ||
+        []
       );
 
     }
 
 
-    const status =
-      deviceStatusMap[
-        selectedDevice.code
-      ];
+    /*
+      Tìm lại button vừa render.
+    */
 
-
-    const button =
+    const savedButton =
       findDeviceButton(
-        selectedDevice.code
+        savedDeviceCode
       );
 
 
-    if (
-      status &&
-      button
-    ) {
+    /*
+      selectedDevice phải được giữ lại
+      để Xem kết quả / Chỉnh sửa hoạt động.
+    */
+
+    selectedDevice =
+      savedDevice;
+
+
+    if (savedButton) {
 
       showCompletedDevice(
 
-        selectedDevice,
+        savedDevice,
 
-        status,
+        deviceStatusMap[
+          savedDeviceCode
+        ],
 
-        button
+        savedButton
 
       );
 
     }
 
+
+    alert(
+
+      wasEditing
+
+        ? `✅ Đã cập nhật kết quả ${savedDeviceCode}.`
+
+        : `✅ Đã lưu kết quả ${savedDeviceCode}.`
+
+    );
+
+
+    /*
+      Sau khi local đã cập nhật,
+      thử refresh backend ở nền của phiên hiện tại.
+
+      Không dùng await để không làm người dùng
+      phải chờ n8n hoàn tất.
+    */
+
+    setTimeout(
+      async () => {
+
+        try {
+
+          const localStatus = {
+            ...deviceStatusMap[
+              savedDeviceCode
+            ]
+          };
+
+
+          await loadDeviceStatuses();
+
+
+          /*
+            Nếu backend lúc này vẫn chưa xử lý xong
+            và chưa trả thiết bị vừa lưu,
+            không được xóa trạng thái COMPLETED local.
+          */
+
+          if (
+            !deviceStatusMap[
+              savedDeviceCode
+            ]
+          ) {
+
+            deviceStatusMap[
+              savedDeviceCode
+            ] =
+              localStatus;
+
+          }
+
+        }
+
+        catch (error) {
+
+          console.log(
+            "BACKGROUND STATUS REFRESH:",
+            error
+          );
+
+        }
+
+      },
+
+      3000
+    );
+
   }
+
 
   catch (error) {
 
@@ -3583,17 +3922,28 @@ async function saveInspection(event) {
 
 
     alert(
-      "❌ Không lưu được kết quả.\n\n" +
+      "❌ Không lưu được kết quả.\n\n"
+      +
       (
-        error.message ||
+        error.message
+        ||
         "Không xác định"
       )
     );
 
+  }
+
+
+  finally {
+
+    /*
+      DÙ THÀNH CÔNG HAY LỖI
+      cũng không để nút kẹt ĐANG LƯU.
+    */
 
     resetSaveButton(
 
-      editingExistingInspection
+      wasEditing
 
         ? "💾 LƯU THAY ĐỔI"
 
@@ -3606,6 +3956,7 @@ async function saveInspection(event) {
 }
 
 
+
 /* =========================================================
    29. HELPERS
 ========================================================= */
@@ -3615,6 +3966,7 @@ function parseOptions(value) {
   if (!value) {
 
     return [];
+
   }
 
 
@@ -3623,6 +3975,7 @@ function parseOptions(value) {
   ) {
 
     return value;
+
   }
 
 
@@ -3637,11 +3990,13 @@ function parseOptions(value) {
 }
 
 
+
 function parsePhotoUrls(value) {
 
   if (!value) {
 
     return [];
+
   }
 
 
@@ -3650,6 +4005,7 @@ function parsePhotoUrls(value) {
   ) {
 
     return value;
+
   }
 
 
@@ -3670,19 +4026,23 @@ function parsePhotoUrls(value) {
   catch {
 
     return [];
+
   }
 
 }
 
 
+
 function formatResultValue(value) {
 
   if (
-    value === null ||
+    value === null
+    ||
     value === undefined
   ) {
 
     return "";
+
   }
 
 
@@ -3693,6 +4053,7 @@ function formatResultValue(value) {
     return JSON.stringify(
       value
     );
+
   }
 
 
@@ -3703,14 +4064,17 @@ function formatResultValue(value) {
 }
 
 
+
 function toBoolean(value) {
 
   if (
-    value === true ||
+    value === true
+    ||
     value === 1
   ) {
 
     return true;
+
   }
 
 
@@ -3722,13 +4086,16 @@ function toBoolean(value) {
 
   return (
 
-    normalized === "true" ||
-    normalized === "1" ||
+    normalized === "true"
+    ||
+    normalized === "1"
+    ||
     normalized === "yes"
 
   );
 
 }
+
 
 
 function formatStatus(status) {
@@ -3751,12 +4118,15 @@ function formatStatus(status) {
 
 
   return (
-    map[status] ||
-    status ||
+    map[status]
+    ||
+    status
+    ||
     "-"
   );
 
 }
+
 
 
 function formatDateTime(value) {
@@ -3764,6 +4134,7 @@ function formatDateTime(value) {
   if (!value) {
 
     return "-";
+
   }
 
 
@@ -3805,9 +4176,11 @@ function formatDateTime(value) {
   catch {
 
     return value;
+
   }
 
 }
+
 
 
 function resetSaveButton(
@@ -3823,6 +4196,7 @@ function resetSaveButton(
   if (!button) {
 
     return;
+
   }
 
 
@@ -3836,6 +4210,7 @@ function resetSaveButton(
 }
 
 
+
 function findDeviceButton(
   deviceCode
 ) {
@@ -3844,6 +4219,12 @@ function findDeviceButton(
     document.querySelectorAll(
       ".device-button"
     );
+
+
+  const target =
+    String(
+      deviceCode || ""
+    ).trim();
 
 
   for (
@@ -3863,12 +4244,18 @@ function findDeviceButton(
 
 
     if (
-      text.includes(
-        deviceCode
-      )
+      text
+        .replace(
+          "✅",
+          ""
+        )
+        .trim()
+      ===
+      target
     ) {
 
       return button;
+
     }
 
   }
@@ -3877,6 +4264,7 @@ function findDeviceButton(
   return null;
 
 }
+
 
 
 function setText(
@@ -3894,9 +4282,11 @@ function setText(
 
     element.textContent =
       value;
+
   }
 
 }
+
 
 
 function showElement(id) {
@@ -3913,6 +4303,7 @@ function showElement(id) {
 }
 
 
+
 function hideElement(id) {
 
   document
@@ -3927,6 +4318,7 @@ function hideElement(id) {
 }
 
 
+
 function setLoading(text) {
 
   const element =
@@ -3938,6 +4330,7 @@ function setLoading(text) {
   if (!element) {
 
     return;
+
   }
 
 
@@ -3958,6 +4351,7 @@ function setLoading(text) {
 }
 
 
+
 function showError(message) {
 
   const element =
@@ -3969,6 +4363,7 @@ function showError(message) {
   if (!element) {
 
     return;
+
   }
 
 
@@ -3983,6 +4378,7 @@ function showError(message) {
   `;
 
 }
+
 
 
 function escapeHtml(value) {
@@ -4012,6 +4408,7 @@ function escapeHtml(value) {
     );
 
 }
+
 
 
 /* =========================================================
