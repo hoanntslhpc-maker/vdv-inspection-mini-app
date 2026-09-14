@@ -10,115 +10,198 @@
 
   <title>Kiểm tra thiết bị</title>
 
-  <link rel="stylesheet" href="inspect.css">
+  <link
+    rel="stylesheet"
+    href="/inspect.css"
+  >
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 
 <body>
 
-<div class="app">
+<div class="container">
 
-  <header class="page-header">
-    <h1>KIỂM TRA THIẾT BỊ</h1>
-    <div id="jobBadge" class="job-badge"></div>
+  <!-- HEADER -->
+  <header class="app-header">
+    <h1>🔍 KIỂM TRA THIẾT BỊ</h1>
+    <p id="jobId">Đang tải mã công việc...</p>
   </header>
 
-  <div id="loading" class="card center">
-    Đang tải dữ liệu...
+
+  <!-- LOADING / ERROR -->
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>
+      Đang tải thông tin công việc...
+    </div>
   </div>
 
-  <div id="errorBox" class="error hidden"></div>
 
-  <!-- THÔNG TIN JOB -->
-  <section id="jobSection" class="hidden">
+  <!-- JOB INFORMATION -->
+  <section
+    id="jobInfo"
+    class="card hidden"
+  >
 
-    <div id="jobInfo" class="card"></div>
+    <div class="card-title">
+      Thông tin công việc
+    </div>
 
-    <h2>Loại thiết bị</h2>
+    <div class="job-grid">
+
+      <div class="info-item">
+        <div class="info-label">
+          Nội dung yêu cầu
+        </div>
+
+        <div
+          id="jobRequest"
+          class="info-value"
+        >
+          -
+        </div>
+      </div>
+
+
+      <div class="info-item">
+        <div class="info-label">
+          Người yêu cầu
+        </div>
+
+        <div
+          id="jobRequester"
+          class="info-value"
+        >
+          -
+        </div>
+      </div>
+
+
+      <div class="info-item">
+        <div class="info-label">
+          Tổng thiết bị
+        </div>
+
+        <div
+          id="deviceCount"
+          class="info-value"
+        >
+          0
+        </div>
+      </div>
+
+
+      <div class="info-item">
+        <div class="info-label">
+          Trạng thái
+        </div>
+
+        <div
+          id="jobStatus"
+          class="info-value"
+        >
+          -
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- DEVICE TYPE -->
+  <section
+    id="deviceTypeSection"
+    class="hidden"
+  >
+
+    <div class="section-title">
+      1. Chọn loại thiết bị
+    </div>
 
     <div
-      id="typeList"
-      class="button-list"
+      id="deviceTypes"
+      class="device-type-list"
     ></div>
 
   </section>
 
 
-  <!-- DANH SÁCH THIẾT BỊ -->
+  <!-- DEVICE LIST -->
   <section
     id="deviceSection"
     class="hidden"
   >
 
-    <button
-      id="backTypes"
-      class="back-button"
-      type="button"
-    >
-      ← Quay lại
-    </button>
-
-    <h2 id="deviceTitle"></h2>
+    <div class="section-title">
+      2. Chọn thiết bị kiểm tra
+    </div>
 
     <div
       id="deviceList"
-      class="button-list"
+      class="device-list"
     ></div>
 
   </section>
 
 
-  <!-- FORM QUY TRÌNH -->
+  <!-- PROCEDURE -->
   <section
     id="procedureSection"
     class="hidden"
   >
 
-    <button
-      id="backDevices"
-      class="back-button"
-      type="button"
-    >
-      ← Danh sách thiết bị
-    </button>
+    <div class="card">
 
-    <div
-      id="deviceInfo"
-      class="card"
-    ></div>
-
-    <div class="progress-card">
-      <div id="procedureProgressText"></div>
-
-      <div class="progress-track">
-        <div
-          id="procedureProgressBar"
-          class="progress-fill"
-        ></div>
+      <div class="info-label">
+        Thiết bị đang kiểm tra
       </div>
+
+      <div
+        id="selectedDeviceCode"
+        class="device-code"
+      ></div>
+
     </div>
 
-    <div id="stepsContainer"></div>
 
-    <button
-      id="saveInspection"
-      class="primary-button"
-      type="button"
-    >
-      LƯU KẾT QUẢ KIỂM TRA
-    </button>
+    <div class="section-title">
+      3. Thực hiện quy trình kiểm tra
+    </div>
+
 
     <div
-      id="saveStatus"
-      class="save-status"
+      id="procedureList"
     ></div>
+
+  </section>
+
+
+  <!-- SAVE -->
+  <section
+    id="saveSection"
+    class="hidden"
+  >
+
+    <div class="action-bar">
+
+      <button
+        type="button"
+        class="btn btn-success"
+        onclick="saveInspection()"
+      >
+        💾 LƯU KẾT QUẢ KIỂM TRA
+      </button>
+
+    </div>
 
   </section>
 
 </div>
 
-<script src="inspect.js"></script>
+
+<script src="/inspect.js"></script>
 
 </body>
 </html>
