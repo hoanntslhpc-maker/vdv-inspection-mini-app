@@ -17,6 +17,9 @@ const GET_JOB_API =
 const GET_PROCEDURE_API =
   `${API_BASE}/get-procedure`;
 
+const SAVE_INSPECTION_API =
+  `${API_BASE}/save-inspection`;
+
 
 /* =========================================================
    2. GLOBAL STATE
@@ -710,6 +713,24 @@ async function selectDevice(
     device;
 
 
+  /* reset nút lưu khi đổi thiết bị */
+
+  const saveButton =
+    document.querySelector(
+      "#saveSection button"
+    );
+
+  if (saveButton) {
+
+    saveButton.disabled =
+      false;
+
+    saveButton.textContent =
+      "💾 LƯU KẾT QUẢ KIỂM TRA";
+
+  }
+
+
   document
     .querySelectorAll(
       ".device-button"
@@ -1190,9 +1211,7 @@ function renderInput(
     );
 
 
-  /* =======================================================
-     SELECT / SELECT_NOTE / FINAL
-  ======================================================= */
+  /* SELECT / SELECT_NOTE / FINAL */
 
   if (
     type === "select"
@@ -1247,9 +1266,7 @@ function renderInput(
   }
 
 
-  /* =======================================================
-     NUMBER_RESULT
-  ======================================================= */
+  /* NUMBER_RESULT */
 
   if (
     type === "number_result"
@@ -1338,9 +1355,7 @@ function renderInput(
   }
 
 
-  /* =======================================================
-     MULTI_NUMBER_RESULT
-  ======================================================= */
+  /* MULTI_NUMBER_RESULT */
 
   if (
     type === "multi_number_result"
@@ -1431,9 +1446,7 @@ function renderInput(
   }
 
 
-  /* =======================================================
-     MULTI_NODE_NUMBER
-  ======================================================= */
+  /* MULTI_NODE_NUMBER */
 
   if (
     type === "multi_node_number"
@@ -1465,9 +1478,7 @@ function renderInput(
   }
 
 
-  /* =======================================================
-     DEFAULT TEXT
-  ======================================================= */
+  /* DEFAULT TEXT */
 
   container.innerHTML = `
 
@@ -1749,9 +1760,7 @@ function collectResults() {
       "";
 
 
-    /* =====================================================
-       MULTI NUMBER
-    ===================================================== */
+    /* MULTI NUMBER */
 
     if (
       type ===
@@ -1811,9 +1820,7 @@ function collectResults() {
     }
 
 
-    /* =====================================================
-       MULTI NODE
-    ===================================================== */
+    /* MULTI NODE */
 
     else if (
       type ===
@@ -1890,9 +1897,7 @@ function collectResults() {
     }
 
 
-    /* =====================================================
-       NORMAL
-    ===================================================== */
+    /* NORMAL */
 
     else {
 
@@ -1946,9 +1951,7 @@ function collectResults() {
         : 0;
 
 
-    /* =====================================================
-       VALIDATION
-    ===================================================== */
+    /* VALIDATION */
 
     if (
       toBoolean(
@@ -2078,9 +2081,7 @@ function collectResults() {
     }
 
 
-    /* =====================================================
-       PHOTO VALIDATION
-    ===================================================== */
+    /* PHOTO VALIDATION */
 
     if (
       toBoolean(
@@ -2149,7 +2150,7 @@ function collectResults() {
 
 
 /* =========================================================
-   23. SAVE
+   23. SAVE TO N8N + UPLOAD PHOTOS
 ========================================================= */
 
 async function saveInspection() {
@@ -2179,9 +2180,29 @@ async function saveInspection() {
     );
 
 
-  inspectionResults[
-    selectedDevice.code
-  ] = {
+  /* TELEGRAM USER */
+
+  const telegramUser =
+    window.Telegram
+      ?.WebApp
+      ?.initDataUnsafe
+      ?.user
+    || {};
+
+
+  const inspectorName =
+    [
+      telegramUser.last_name,
+      telegramUser.first_name
+    ]
+      .filter(Boolean)
+      .join(" ")
+    || "Không xác định";
+
+
+  /* PAYLOAD */
+
+  const payload = {
 
     job_id:
       jobId,
@@ -2197,30 +2218,277 @@ async function saveInspection() {
         ?.procedure_code
       || "",
 
-    device:
-      selectedDevice,
+    inspector_id:
+      telegramUser.id || "",
+
+    inspector_name:
+      inspectorName,
+
+    checked_at:
+      new Date()
+        .toISOString(),
 
     results:
-      results,
+      results.map(
+        result => ({
 
-    saved_at:
-      new Date()
-        .toISOString()
+          step_order:
+            result.step_order,
+
+          step_title:
+            result.step_title,
+
+          result_value:
+            result.result,
+
+          result_status:
+            result.assessment || "",
+
+          note:
+            result.note || "",
+
+          unit:
+            result.unit || "",
+
+          photo_urls:
+            []
+
+        })
+      )
 
   };
 
 
-  console.log(
-    "INSPECTION DATA:",
+  /* FORMDATA */
+
+  const formData =
+    new FormData();
+
+
+  formData.append(
+    "payload",
+    JSON.stringify(
+      payload
+    )
+  );
+
+
+  /* ATTACH PHOTOS */
+
+  for (
+    const step
+    of currentProcedure
+  ) {
+
+    const order =
+      Number(
+        step.step_order
+      );
+
+
+    const photoInput =
+      document.getElementById(
+        `photo-${order}`
+      );
+
+
+    if (
+      !photoInput
+      ||
+      !photoInput.files
+      ||
+      photoInput.files.length === 0
+    ) {
+      continue;
+    }
+
+
+    const files =
+      Array.from(
+        photoInput.files
+      );
+
+
+    files.forEach(
+      (file, index) => {
+
+        const fieldName =
+          `photo_step_${order}_${index + 1}`;
+
+
+        formData.append(
+          fieldName,
+          file,
+          file.name
+        );
+
+      }
+    );
+
+  }
+
+
+  /* SAVE BUTTON */
+
+  const saveButton =
+    document.querySelector(
+      "#saveSection button"
+    );
+
+
+  if (saveButton) {
+
+    saveButton.disabled =
+      true;
+
+    saveButton.textContent =
+      "⏳ ĐANG LƯU...";
+
+  }
+
+
+  try {
+
+    console.log(
+      "POST SAVE:",
+      SAVE_INSPECTION_API
+    );
+
+
+    console.log(
+      "PAYLOAD:",
+      payload
+    );
+
+
+    const response =
+      await fetch(
+        SAVE_INSPECTION_API,
+        {
+
+          method:
+            "POST",
+
+          body:
+            formData
+
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    console.log(
+      "SAVE RESPONSE:",
+      response.status,
+      responseText
+    );
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        responseText
+        ||
+        `HTTP ${response.status}`
+      );
+
+    }
+
+
+    let responseData =
+      {};
+
+
+    if (
+      responseText.trim()
+    ) {
+
+      try {
+
+        responseData =
+          JSON.parse(
+            responseText
+          );
+
+      }
+
+      catch {
+
+        responseData = {
+
+          message:
+            responseText
+
+        };
+
+      }
+
+    }
+
+
     inspectionResults[
       selectedDevice.code
-    ]
-  );
+    ] = {
+
+      saved:
+        true,
+
+      saved_at:
+        new Date()
+          .toISOString(),
+
+      response:
+        responseData
+
+    };
 
 
-  alert(
-    `Đã hoàn thành kiểm tra ${selectedDevice.code}.`
-  );
+    alert(
+      `✅ Đã lưu kết quả kiểm tra ${selectedDevice.code}.`
+    );
+
+
+    if (saveButton) {
+
+      saveButton.disabled =
+        true;
+
+      saveButton.textContent =
+        "✅ ĐÃ LƯU KẾT QUẢ";
+
+    }
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "SAVE INSPECTION ERROR:",
+      error
+    );
+
+
+    alert(
+      "❌ Không lưu được kết quả kiểm tra.\n\n"
+      +
+      error.message
+    );
+
+
+    if (saveButton) {
+
+      saveButton.disabled =
+        false;
+
+      saveButton.textContent =
+        "💾 LƯU KẾT QUẢ KIỂM TRA";
+
+    }
+
+  }
 
 }
 
