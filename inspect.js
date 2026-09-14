@@ -20,6 +20,12 @@ const GET_PROCEDURE_API =
 const SAVE_INSPECTION_API =
   `${API_BASE}/save-inspection`;
 
+const GET_DEVICE_STATUS_API =
+  `${API_BASE}/get-device-status`;
+
+const GET_INSPECTION_RESULT_API =
+  `${API_BASE}/get-inspection-result`;
+
 
 /* =========================================================
    2. GLOBAL STATE
@@ -31,6 +37,8 @@ let devices = [];
 
 let deviceGroups = {};
 
+let deviceStatusMap = {};
+
 let selectedGroup = null;
 
 let selectedDevice = null;
@@ -40,8 +48,17 @@ let currentProcedure = [];
 let inspectionResults = {};
 
 
+/* =========================
+   EDIT MODE
+========================= */
+
+let editingExistingInspection = false;
+
+let savedInspectionRows = [];
+
+
 /* =========================================================
-   3. GET JOB ID FROM URL
+   3. GET JOB ID
 ========================================================= */
 
 const params =
@@ -54,7 +71,7 @@ const jobId =
 
 
 /* =========================================================
-   4. DOM READY
+   4. START
 ========================================================= */
 
 document.addEventListener(
@@ -88,11 +105,10 @@ async function loadJob() {
 
   try {
 
-    const url =
-      `${GET_JOB_API}?job=${encodeURIComponent(jobId)}`;
-
     const response =
-      await fetch(url);
+      await fetch(
+        `${GET_JOB_API}?job=${encodeURIComponent(jobId)}`
+      );
 
     if (!response.ok) {
 
@@ -108,7 +124,7 @@ async function loadJob() {
     if (!rawText.trim()) {
 
       throw new Error(
-        "API get-job không trả dữ liệu."
+        "Không tìm thấy dữ liệu công việc."
       );
 
     }
@@ -131,25 +147,17 @@ async function loadJob() {
     }
 
 
-    if (Array.isArray(data)) {
+    currentJob =
+      Array.isArray(data)
+        ? data[0]
+        : data;
 
-      if (data.length === 0) {
 
-        throw new Error(
-          "Không tìm thấy công việc."
-        );
+    if (!currentJob) {
 
-      }
-
-      currentJob =
-        data[0];
-
-    }
-
-    else {
-
-      currentJob =
-        data;
+      throw new Error(
+        "Không tìm thấy công việc."
+      );
 
     }
 
@@ -168,6 +176,13 @@ async function loadJob() {
 
     }
 
+
+    /* tải trạng thái thiết bị */
+
+    await loadDeviceStatuses();
+
+
+    /* nhóm thiết bị */
 
     deviceGroups =
       groupDevicesByType(
@@ -189,8 +204,8 @@ async function loadJob() {
     );
 
     showError(
-      "Không tải được thông tin công việc. " +
-      error.message
+      "Không tải được thông tin công việc.\n"
+      + error.message
     );
 
   }
@@ -199,23 +214,114 @@ async function loadJob() {
 
 
 /* =========================================================
-   6. PARSE DEVICES
+   6. LOAD DEVICE STATUSES
+========================================================= */
+
+async function loadDeviceStatuses() {
+
+  deviceStatusMap = {};
+
+
+  try {
+
+    const response =
+      await fetch(
+        `${GET_DEVICE_STATUS_API}?job=${encodeURIComponent(jobId)}`
+      );
+
+
+    if (!response.ok) {
+
+      console.warn(
+        "Không tải được device status"
+      );
+
+      return;
+    }
+
+
+    const rawText =
+      await response.text();
+
+
+    if (!rawText.trim()) {
+
+      return;
+    }
+
+
+    const data =
+      JSON.parse(rawText);
+
+
+    const rows =
+      Array.isArray(data)
+        ? data
+        : (
+            Array.isArray(data.results)
+              ? data.results
+              : [data]
+          );
+
+
+    rows.forEach(row => {
+
+      const code =
+        String(
+          row.device_code || ""
+        ).trim();
+
+
+      if (!code) {
+        return;
+      }
+
+
+      deviceStatusMap[
+        code
+      ] = row;
+
+    });
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "LOAD DEVICE STATUS ERROR:",
+      error
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   7. PARSE DEVICES
 ========================================================= */
 
 function parseDevices(value) {
 
   if (Array.isArray(value)) {
+
     return value;
+
   }
 
+
   if (!value) {
+
     return [];
+
   }
+
 
   try {
 
     const parsed =
       JSON.parse(value);
+
 
     return Array.isArray(parsed)
       ? parsed
@@ -223,12 +329,7 @@ function parseDevices(value) {
 
   }
 
-  catch (error) {
-
-    console.error(
-      "devices_json invalid:",
-      error
-    );
+  catch {
 
     return [];
 
@@ -238,7 +339,7 @@ function parseDevices(value) {
 
 
 /* =========================================================
-   7. NORMALIZE RAW SENSOR TYPE
+   8. NORMALIZE SENSOR TYPE
 ========================================================= */
 
 function normalizeRawSensorType(type) {
@@ -251,7 +352,7 @@ function normalizeRawSensorType(type) {
 
 
 /* =========================================================
-   8. DEVICE GROUP KEY
+   9. DEVICE GROUP
 ========================================================= */
 
 function getDeviceGroupKey(
@@ -265,11 +366,13 @@ function getDeviceGroupKey(
 
 
   const stressTypes = [
+
     "JE",
     "SG",
     "ST",
     "SGS",
     "STS"
+
   ];
 
 
@@ -291,7 +394,7 @@ function getDeviceGroupKey(
 
 
 /* =========================================================
-   9. DEVICE GROUP DISPLAY NAME
+   10. GROUP DISPLAY NAME
 ========================================================= */
 
 function getDeviceGroupName(
@@ -328,7 +431,7 @@ function getDeviceGroupName(
 
 
 /* =========================================================
-   10. GROUP DEVICES
+   11. GROUP DEVICES
 ========================================================= */
 
 function groupDevicesByType(list) {
@@ -351,9 +454,8 @@ function groupDevicesByType(list) {
     }
 
 
-    groups[groupKey].push(
-      device
-    );
+    groups[groupKey]
+      .push(device);
 
   });
 
@@ -364,7 +466,7 @@ function groupDevicesByType(list) {
 
 
 /* =========================================================
-   11. RENDER JOB
+   12. RENDER JOB
 ========================================================= */
 
 function renderJob() {
@@ -431,7 +533,7 @@ function renderJob() {
 
 
 /* =========================================================
-   12. RENDER DEVICE GROUPS
+   13. RENDER DEVICE GROUPS
 ========================================================= */
 
 function renderDeviceTypes() {
@@ -443,23 +545,18 @@ function renderDeviceTypes() {
 
 
   if (!container) {
-
-    console.error(
-      "Không tìm thấy #deviceTypes"
-    );
-
     return;
   }
 
 
-  container.innerHTML =
-    "";
+  container.innerHTML = "";
 
 
   Object.entries(
     deviceGroups
   ).forEach(
     ([groupKey, list]) => {
+
 
       const button =
         document.createElement(
@@ -475,20 +572,41 @@ function renderDeviceTypes() {
         "device-type-button";
 
 
-      const displayName =
-        getDeviceGroupName(
-          groupKey
-        );
+      const completedCount =
+        list.filter(
+          device =>
+            deviceStatusMap[
+              device.code
+            ]?.status
+            === "COMPLETED"
+        ).length;
 
 
       button.innerHTML = `
+
         <div class="device-type-name">
-          ${escapeHtml(displayName)}
+
+          ${escapeHtml(
+            getDeviceGroupName(
+              groupKey
+            )
+          )}
+
         </div>
 
+
         <div class="device-type-count">
+
           ${list.length} thiết bị
+
+          ${
+            completedCount > 0
+              ? ` • ✅ ${completedCount} đã kiểm tra`
+              : ""
+          }
+
         </div>
+
       `;
 
 
@@ -516,7 +634,7 @@ function renderDeviceTypes() {
 
 
 /* =========================================================
-   13. SELECT DEVICE GROUP
+   14. SELECT GROUP
 ========================================================= */
 
 function selectDeviceGroup(
@@ -533,6 +651,14 @@ function selectDeviceGroup(
 
 
   currentProcedure =
+    [];
+
+
+  editingExistingInspection =
+    false;
+
+
+  savedInspectionRows =
     [];
 
 
@@ -565,11 +691,16 @@ function selectDeviceGroup(
     "procedureSection"
   );
 
+
+  hideElement(
+    "saveSection"
+  );
+
 }
 
 
 /* =========================================================
-   14. RENDER DEVICES
+   15. RENDER DEVICES
 ========================================================= */
 
 function renderDevices(list) {
@@ -648,24 +779,71 @@ function renderDevices(list) {
 
     const meta =
       [
+
         `Type: ${type}`,
         mux,
         channel,
         elevation,
         serial
+
       ]
-      .filter(Boolean)
-      .join(" • ");
+        .filter(Boolean)
+        .join(" • ");
+
+
+    const savedStatus =
+      deviceStatusMap[
+        code
+      ];
+
+
+    const isCompleted =
+      savedStatus?.status
+      === "COMPLETED";
 
 
     button.innerHTML = `
+
       <div class="device-code">
+
+        ${
+          isCompleted
+            ? "✅ "
+            : ""
+        }
+
         ${escapeHtml(code)}
+
       </div>
 
+
       <div class="device-meta">
+
         ${escapeHtml(meta)}
+
       </div>
+
+
+      ${
+        isCompleted
+
+          ? `
+
+            <div
+              style="
+                margin-top:7px;
+                color:#16803d;
+                font-weight:700;
+              "
+            >
+              Đã kiểm tra
+            </div>
+
+          `
+
+          : ""
+      }
+
     `;
 
 
@@ -673,10 +851,24 @@ function renderDevices(list) {
       "click",
       () => {
 
-        selectDevice(
-          device,
-          button
-        );
+        if (isCompleted) {
+
+          showCompletedDevice(
+            device,
+            savedStatus,
+            button
+          );
+
+        }
+
+        else {
+
+          selectDevice(
+            device,
+            button
+          );
+
+        }
 
       }
     );
@@ -701,7 +893,7 @@ function renderDevices(list) {
 
 
 /* =========================================================
-   15. SELECT DEVICE
+   16. SELECT NEW DEVICE
 ========================================================= */
 
 async function selectDevice(
@@ -713,22 +905,12 @@ async function selectDevice(
     device;
 
 
-  /* reset nút lưu khi đổi thiết bị */
+  editingExistingInspection =
+    false;
 
-  const saveButton =
-    document.querySelector(
-      "#saveSection button"
-    );
 
-  if (saveButton) {
-
-    saveButton.disabled =
-      false;
-
-    saveButton.textContent =
-      "💾 LƯU KẾT QUẢ KIỂM TRA";
-
-  }
+  savedInspectionRows =
+    [];
 
 
   document
@@ -749,21 +931,187 @@ async function selectDevice(
   );
 
 
-  const realSensorType =
-    normalizeRawSensorType(
-      device.sensor_type
-    );
+  resetSaveButton(
+    "💾 LƯU KẾT QUẢ KIỂM TRA"
+  );
 
 
   await loadProcedure(
-    realSensorType
+    normalizeRawSensorType(
+      device.sensor_type
+    )
   );
 
 }
 
 
 /* =========================================================
-   16. LOAD PROCEDURE
+   17. SHOW COMPLETED DEVICE
+========================================================= */
+
+function showCompletedDevice(
+  device,
+  status,
+  button
+) {
+
+  selectedDevice =
+    device;
+
+
+  editingExistingInspection =
+    false;
+
+
+  savedInspectionRows =
+    [];
+
+
+  document
+    .querySelectorAll(
+      ".device-button"
+    )
+    .forEach(btn => {
+
+      btn.classList.remove(
+        "active"
+      );
+
+    });
+
+
+  button.classList.add(
+    "active"
+  );
+
+
+  const section =
+    document.getElementById(
+      "procedureSection"
+    );
+
+
+  const container =
+    document.getElementById(
+      "procedureList"
+    );
+
+
+  if (
+    !section ||
+    !container
+  ) {
+    return;
+  }
+
+
+  section.classList.remove(
+    "hidden"
+  );
+
+
+  hideElement(
+    "saveSection"
+  );
+
+
+  setText(
+    "selectedDeviceCode",
+    device.code ||
+    ""
+  );
+
+
+  container.innerHTML = `
+
+    <div class="card">
+
+      <div
+        style="
+          font-size:20px;
+          font-weight:700;
+          color:#16803d;
+          margin-bottom:16px;
+        "
+      >
+        ✅ Thiết bị đã kiểm tra
+      </div>
+
+
+      <div>
+        <strong>Thiết bị:</strong>
+        ${escapeHtml(
+          device.code || ""
+        )}
+      </div>
+
+
+      <div style="margin-top:8px;">
+
+        <strong>Sensor Type:</strong>
+
+        ${escapeHtml(
+          normalizeRawSensorType(
+            device.sensor_type
+          )
+        )}
+
+      </div>
+
+
+      <div style="margin-top:8px;">
+
+        <strong>Người kiểm tra:</strong>
+
+        ${escapeHtml(
+          status.inspector_name ||
+          "Không xác định"
+        )}
+
+      </div>
+
+
+      <div style="margin-top:8px;">
+
+        <strong>Thời gian:</strong>
+
+        ${escapeHtml(
+          formatDateTime(
+            status.checked_at
+          )
+        )}
+
+      </div>
+
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        style="margin-top:18px;"
+        onclick="viewSavedResult()"
+      >
+        👁 XEM KẾT QUẢ ĐÃ KIỂM TRA
+      </button>
+
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        style="margin-top:10px;"
+        onclick="editSavedInspection()"
+      >
+        ✏️ CHỈNH SỬA KẾT QUẢ
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   18. LOAD PROCEDURE
 ========================================================= */
 
 async function loadProcedure(
@@ -800,10 +1148,15 @@ async function loadProcedure(
   if (container) {
 
     container.innerHTML = `
+
       <div class="loading">
+
         <div class="spinner"></div>
+
         Đang tải quy trình kiểm tra...
+
       </div>
+
     `;
 
   }
@@ -811,12 +1164,10 @@ async function loadProcedure(
 
   try {
 
-    const url =
-      `${GET_PROCEDURE_API}?type=${encodeURIComponent(type)}`;
-
-
     const response =
-      await fetch(url);
+      await fetch(
+        `${GET_PROCEDURE_API}?type=${encodeURIComponent(type)}`
+      );
 
 
     if (!response.ok) {
@@ -835,31 +1186,14 @@ async function loadProcedure(
     if (!rawText.trim()) {
 
       throw new Error(
-        `Không tìm thấy quy trình cho Sensor Type ${type}.`
+        `Không có quy trình cho ${type}.`
       );
 
     }
 
 
-    let data;
-
-
-    try {
-
-      data =
-        JSON.parse(
-          rawText
-        );
-
-    }
-
-    catch {
-
-      throw new Error(
-        "API get-procedure không trả JSON hợp lệ."
-      );
-
-    }
+    let data =
+      JSON.parse(rawText);
 
 
     if (!Array.isArray(data)) {
@@ -874,13 +1208,9 @@ async function loadProcedure(
 
     data.sort(
       (a, b) =>
-        Number(
-          a.step_order
-        )
+        Number(a.step_order)
         -
-        Number(
-          b.step_order
-        )
+        Number(b.step_order)
     );
 
 
@@ -889,11 +1219,11 @@ async function loadProcedure(
 
 
     if (
-      currentProcedure.length === 0
+      !currentProcedure.length
     ) {
 
       throw new Error(
-        `Không có quy trình cho Sensor Type ${type}.`
+        `Không có quy trình cho ${type}.`
       );
 
     }
@@ -905,15 +1235,10 @@ async function loadProcedure(
 
   catch (error) {
 
-    console.error(
-      "LOAD PROCEDURE ERROR:",
-      error
-    );
-
-
     if (container) {
 
       container.innerHTML = `
+
         <div class="error-box">
 
           Không tải được quy trình kiểm tra.
@@ -925,6 +1250,7 @@ async function loadProcedure(
           )}
 
         </div>
+
       `;
 
     }
@@ -935,7 +1261,7 @@ async function loadProcedure(
 
 
 /* =========================================================
-   17. RENDER PROCEDURE
+   19. RENDER PROCEDURE
 ========================================================= */
 
 function renderProcedure() {
@@ -965,14 +1291,10 @@ function renderProcedure() {
   currentProcedure.forEach(
     step => {
 
-      const stepElement =
+      container.appendChild(
         createProcedureStep(
           step
-        );
-
-
-      container.appendChild(
-        stepElement
+        )
       );
 
     }
@@ -987,7 +1309,7 @@ function renderProcedure() {
 
 
 /* =========================================================
-   18. CREATE PROCEDURE STEP
+   20. CREATE STEP
 ========================================================= */
 
 function createProcedureStep(
@@ -1029,20 +1351,25 @@ function createProcedureStep(
     <div class="step-header">
 
       <div class="step-number">
+
         ${order}
+
       </div>
 
       <div class="step-title">
+
         ${escapeHtml(
           step.step_title ||
           ""
         )}
+
       </div>
 
     </div>
 
 
     <div class="step-body">
+
 
       <div class="step-info">
 
@@ -1051,10 +1378,12 @@ function createProcedureStep(
         </div>
 
         <div class="step-info-content">
+
           ${escapeHtml(
             step.method ||
             ""
           )}
+
         </div>
 
       </div>
@@ -1067,17 +1396,18 @@ function createProcedureStep(
         </div>
 
         <div class="step-info-content">
+
           ${escapeHtml(
             step.standard ||
             ""
           )}
+
         </div>
 
       </div>
 
 
       <div
-        class="result-area"
         id="result-${order}"
       ></div>
 
@@ -1099,79 +1429,82 @@ function createProcedureStep(
       ${
         photoRequired
 
-        ? `
+          ? `
 
-        <div class="photo-box">
+            <div class="photo-box">
 
-          <div class="photo-title">
-            📷 Ảnh kiểm tra
-          </div>
+              <div class="photo-title">
+                📷 Ảnh kiểm tra
+              </div>
 
-          <div class="photo-required">
-            Bắt buộc tối thiểu
-            ${photoMin || 1}
-            ảnh
-          </div>
+              <div class="photo-required">
 
-          <input
-            type="file"
-            id="photo-${order}"
-            accept="image/*"
-            capture="environment"
-            multiple
-          >
+                Bắt buộc tối thiểu
+                ${photoMin || 1}
+                ảnh
 
-          <div
-            class="photo-preview"
-            id="preview-${order}"
-          ></div>
+              </div>
 
-        </div>
 
-        `
+              <div
+                id="old-photo-${order}"
+                style="margin-bottom:10px;"
+              ></div>
 
-        : ""
+
+              <input
+                type="file"
+                id="photo-${order}"
+                accept="image/*"
+                capture="environment"
+                multiple
+              >
+
+
+              <div
+                class="photo-preview"
+                id="preview-${order}"
+              ></div>
+
+            </div>
+
+          `
+
+          : ""
       }
 
     </div>
+
   `;
 
 
-  const resultArea =
+  renderInput(
     wrapper.querySelector(
       `#result-${order}`
-    );
-
-
-  renderInput(
-    resultArea,
+    ),
     step
   );
 
 
-  if (photoRequired) {
-
-    const photoInput =
-      wrapper.querySelector(
-        `#photo-${order}`
-      );
+  const photoInput =
+    wrapper.querySelector(
+      `#photo-${order}`
+    );
 
 
-    if (photoInput) {
+  if (photoInput) {
 
-      photoInput.addEventListener(
-        "change",
-        event => {
+    photoInput.addEventListener(
+      "change",
+      event => {
 
-          previewPhotos(
-            event,
-            order
-          );
+        previewPhotos(
+          event,
+          order
+        );
 
-        }
-      );
-
-    }
+      }
+    );
 
   }
 
@@ -1182,7 +1515,7 @@ function createProcedureStep(
 
 
 /* =========================================================
-   19. RENDER INPUT
+   21. RENDER INPUT
 ========================================================= */
 
 function renderInput(
@@ -1211,7 +1544,7 @@ function renderInput(
     );
 
 
-  /* SELECT / SELECT_NOTE / FINAL */
+  /* SELECT */
 
   if (
     type === "select"
@@ -1226,12 +1559,15 @@ function renderInput(
       <div class="form-group">
 
         <label class="form-label">
+
           ${
             type === "final_assessment"
               ? "Đánh giá tình trạng"
               : "Kết quả kiểm tra"
           }
+
         </label>
+
 
         <select
           id="value-${order}"
@@ -1245,11 +1581,15 @@ function renderInput(
             options
               .map(
                 option => `
+
                   <option
                     value="${escapeHtml(option)}"
                   >
+
                     ${escapeHtml(option)}
+
                   </option>
+
                 `
               )
               .join("")
@@ -1258,6 +1598,7 @@ function renderInput(
         </select>
 
       </div>
+
     `;
 
 
@@ -1266,7 +1607,7 @@ function renderInput(
   }
 
 
-  /* NUMBER_RESULT */
+  /* NUMBER */
 
   if (
     type === "number_result"
@@ -1292,13 +1633,19 @@ function renderInput(
           ${
             step.unit
 
-            ? `
-              <div class="unit-box">
-                ${escapeHtml(step.unit)}
-              </div>
-            `
+              ? `
 
-            : ""
+                <div class="unit-box">
+
+                  ${escapeHtml(
+                    step.unit
+                  )}
+
+                </div>
+
+              `
+
+              : ""
           }
 
         </div>
@@ -1309,7 +1656,110 @@ function renderInput(
       ${
         options.length
 
-        ? `
+          ? `
+
+            <div class="form-group">
+
+              <label class="form-label">
+                Đánh giá
+              </label>
+
+              <select
+                id="assessment-${order}"
+              >
+
+                <option value="">
+                  -- Chọn đánh giá --
+                </option>
+
+                ${
+                  options
+                    .map(
+                      option => `
+
+                        <option
+                          value="${escapeHtml(option)}"
+                        >
+
+                          ${escapeHtml(option)}
+
+                        </option>
+
+                      `
+                    )
+                    .join("")
+                }
+
+              </select>
+
+            </div>
+
+          `
+
+          : ""
+      }
+
+    `;
+
+
+    return;
+
+  }
+
+
+  /* MULTI NUMBER */
+
+  if (
+    type === "multi_number_result"
+  ) {
+
+    const units =
+      String(
+        step.unit ||
+        ""
+      )
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean);
+
+
+    container.innerHTML =
+      units
+        .map(
+          (unit, index) => `
+
+            <div class="form-group">
+
+              <label class="form-label">
+
+                Giá trị
+                ${escapeHtml(unit)}
+
+              </label>
+
+              <div class="number-row">
+
+                <input
+                  type="number"
+                  step="any"
+                  id="multi-${order}-${index}"
+                >
+
+                <div class="unit-box">
+
+                  ${escapeHtml(unit)}
+
+                </div>
+
+              </div>
+
+            </div>
+
+          `
+        )
+        .join("")
+      +
+      `
 
         <div class="form-group">
 
@@ -1329,11 +1779,15 @@ function renderInput(
               options
                 .map(
                   option => `
+
                     <option
                       value="${escapeHtml(option)}"
                     >
+
                       ${escapeHtml(option)}
+
                     </option>
+
                   `
                 )
                 .join("")
@@ -1343,11 +1797,7 @@ function renderInput(
 
         </div>
 
-        `
-
-        : ""
-      }
-    `;
+      `;
 
 
     return;
@@ -1355,98 +1805,7 @@ function renderInput(
   }
 
 
-  /* MULTI_NUMBER_RESULT */
-
-  if (
-    type === "multi_number_result"
-  ) {
-
-    const units =
-      String(
-        step.unit ||
-        ""
-      )
-        .split(",")
-        .map(
-          item =>
-            item.trim()
-        )
-        .filter(Boolean);
-
-
-    container.innerHTML =
-      units
-        .map(
-          (unit, index) => `
-
-            <div class="form-group">
-
-              <label class="form-label">
-                Giá trị ${escapeHtml(unit)}
-              </label>
-
-              <div class="number-row">
-
-                <input
-                  type="number"
-                  step="any"
-                  id="multi-${order}-${index}"
-                  placeholder="Nhập giá trị"
-                >
-
-                <div class="unit-box">
-                  ${escapeHtml(unit)}
-                </div>
-
-              </div>
-
-            </div>
-          `
-        )
-        .join("")
-      +
-      `
-
-      <div class="form-group">
-
-        <label class="form-label">
-          Đánh giá
-        </label>
-
-        <select
-          id="assessment-${order}"
-        >
-
-          <option value="">
-            -- Chọn đánh giá --
-          </option>
-
-          ${
-            options
-              .map(
-                option => `
-                  <option
-                    value="${escapeHtml(option)}"
-                  >
-                    ${escapeHtml(option)}
-                  </option>
-                `
-              )
-              .join("")
-          }
-
-        </select>
-
-      </div>
-    `;
-
-
-    return;
-
-  }
-
-
-  /* MULTI_NODE_NUMBER */
+  /* MULTI NODE */
 
   if (
     type === "multi_node_number"
@@ -1458,13 +1817,17 @@ function renderInput(
         id="nodes-${order}"
       ></div>
 
+
       <button
         type="button"
         class="btn btn-secondary"
         onclick="addSensorNode(${order})"
       >
+
         + Thêm mắt cảm biến
+
       </button>
+
     `;
 
 
@@ -1478,7 +1841,7 @@ function renderInput(
   }
 
 
-  /* DEFAULT TEXT */
+  /* TEXT */
 
   container.innerHTML = `
 
@@ -1489,19 +1852,19 @@ function renderInput(
       </label>
 
       <input
-        type="text"
         id="value-${order}"
-        placeholder="Nhập kết quả kiểm tra"
+        type="text"
       >
 
     </div>
+
   `;
 
 }
 
 
 /* =========================================================
-   20. ADD SENSOR NODE
+   22. SENSOR NODE
 ========================================================= */
 
 function addSensorNode(order) {
@@ -1520,9 +1883,7 @@ function addSensorNode(order) {
   const step =
     currentProcedure.find(
       item =>
-        Number(
-          item.step_order
-        )
+        Number(item.step_order)
         ===
         Number(order)
     );
@@ -1543,28 +1904,27 @@ function addSensorNode(order) {
     );
 
 
-  const row =
+  const card =
     document.createElement(
       "div"
     );
 
 
-  row.className =
+  card.className =
     "card";
 
 
-  row.innerHTML = `
+  card.innerHTML = `
 
     <div class="form-group">
 
       <label class="form-label">
-        Mắt / Dây cảm biến
+        Mắt / dây cảm biến
       </label>
 
       <input
-        type="text"
         id="node-name-${order}-${index}"
-        placeholder="VD: Red, White, Green..."
+        type="text"
       >
 
     </div>
@@ -1579,23 +1939,18 @@ function addSensorNode(order) {
       <div class="number-row">
 
         <input
+          id="node-value-${order}-${index}"
           type="number"
           step="any"
-          id="node-value-${order}-${index}"
-          placeholder="Nhập giá trị"
         >
 
-        ${
-          step.unit
+        <div class="unit-box">
 
-          ? `
-            <div class="unit-box">
-              ${escapeHtml(step.unit)}
-            </div>
-          `
+          ${escapeHtml(
+            step.unit || ""
+          )}
 
-          : ""
-        }
+        </div>
 
       </div>
 
@@ -1620,11 +1975,15 @@ function addSensorNode(order) {
           options
             .map(
               option => `
+
                 <option
                   value="${escapeHtml(option)}"
                 >
+
                   ${escapeHtml(option)}
+
                 </option>
+
               `
             )
             .join("")
@@ -1633,35 +1992,791 @@ function addSensorNode(order) {
       </select>
 
     </div>
+
   `;
 
 
   holder.appendChild(
-    row
+    card
   );
 
 }
 
 
-window.addSensorNode =
-  addSensorNode;
+/* =========================================================
+   23. GET SAVED RESULTS
+========================================================= */
+
+async function fetchSavedInspection() {
+
+  if (!selectedDevice) {
+
+    return [];
+
+  }
+
+
+  const response =
+    await fetch(
+
+      `${GET_INSPECTION_RESULT_API}`
+      +
+      `?job=${encodeURIComponent(jobId)}`
+      +
+      `&device=${encodeURIComponent(selectedDevice.code)}`
+
+    );
+
+
+  if (!response.ok) {
+
+    throw new Error(
+      `HTTP ${response.status}`
+    );
+
+  }
+
+
+  const data =
+    await response.json();
+
+
+  return Array.isArray(data)
+    ? data
+    : (
+        Array.isArray(data.results)
+          ? data.results
+          : []
+      );
+
+}
 
 
 /* =========================================================
-   21. PHOTO PREVIEW
+   24. VIEW SAVED RESULT
+========================================================= */
+
+window.viewSavedResult =
+  async function() {
+
+    try {
+
+      const rows =
+        await fetchSavedInspection();
+
+
+      if (!rows.length) {
+
+        throw new Error(
+          "Không tìm thấy kết quả đã lưu."
+        );
+
+      }
+
+
+      const container =
+        document.getElementById(
+          "procedureList"
+        );
+
+
+      if (!container) {
+        return;
+      }
+
+
+      container.innerHTML =
+        "";
+
+
+      rows
+        .sort(
+          (a, b) =>
+            Number(a.step_order)
+            -
+            Number(b.step_order)
+        )
+        .forEach(row => {
+
+
+          const urls =
+            parsePhotoUrls(
+              row.photo_urls
+            );
+
+
+          const card =
+            document.createElement(
+              "div"
+            );
+
+
+          card.className =
+            "procedure-step";
+
+
+          card.innerHTML = `
+
+            <div class="step-header">
+
+              <div class="step-number">
+
+                ${row.step_order}
+
+              </div>
+
+              <div class="step-title">
+
+                ${escapeHtml(
+                  row.step_title || ""
+                )}
+
+              </div>
+
+            </div>
+
+
+            <div class="step-body">
+
+
+              <div class="step-info">
+
+                <div class="step-info-title">
+                  Kết quả
+                </div>
+
+                <div class="step-info-content">
+
+                  ${escapeHtml(
+                    formatResultValue(
+                      row.result_value
+                    )
+                  )}
+
+                </div>
+
+              </div>
+
+
+              ${
+                row.result_status
+
+                  ? `
+
+                    <div class="step-info">
+
+                      <div class="step-info-title">
+                        Đánh giá
+                      </div>
+
+                      <div class="step-info-content">
+
+                        ${escapeHtml(
+                          row.result_status
+                        )}
+
+                      </div>
+
+                    </div>
+
+                  `
+
+                  : ""
+              }
+
+
+              ${
+                row.note
+
+                  ? `
+
+                    <div class="step-info">
+
+                      <div class="step-info-title">
+                        Ghi chú
+                      </div>
+
+                      <div class="step-info-content">
+
+                        ${escapeHtml(
+                          row.note
+                        )}
+
+                      </div>
+
+                    </div>
+
+                  `
+
+                  : ""
+              }
+
+
+              ${
+                urls.length
+
+                  ? `
+
+                    <div class="step-info">
+
+                      <div class="step-info-title">
+                        Ảnh kiểm tra
+                      </div>
+
+                      ${
+
+                        urls
+                          .map(
+                            (url, index) => `
+
+                              <div style="margin-top:6px;">
+
+                                <a
+                                  href="${escapeHtml(url)}"
+                                  target="_blank"
+                                >
+                                  📷 Xem ảnh ${index + 1}
+                                </a>
+
+                              </div>
+
+                            `
+                          )
+                          .join("")
+
+                      }
+
+                    </div>
+
+                  `
+
+                  : ""
+              }
+
+            </div>
+
+          `;
+
+
+          container.appendChild(
+            card
+          );
+
+        });
+
+
+      hideElement(
+        "saveSection"
+      );
+
+
+      const back =
+        document.createElement(
+          "button"
+        );
+
+
+      back.className =
+        "btn btn-secondary";
+
+
+      back.style.marginTop =
+        "12px";
+
+
+      back.textContent =
+        "← Quay lại";
+
+
+      back.onclick =
+        () => {
+
+          const status =
+            deviceStatusMap[
+              selectedDevice.code
+            ];
+
+
+          showCompletedDevice(
+            selectedDevice,
+            status,
+            findDeviceButton(
+              selectedDevice.code
+            )
+          );
+
+        };
+
+
+      container.appendChild(
+        back
+      );
+
+    }
+
+    catch (error) {
+
+      alert(
+        "Không tải được kết quả.\n\n"
+        +
+        error.message
+      );
+
+    }
+
+  };
+
+
+/* =========================================================
+   25. EDIT SAVED RESULT
+========================================================= */
+
+window.editSavedInspection =
+  async function() {
+
+    try {
+
+      const rows =
+        await fetchSavedInspection();
+
+
+      if (!rows.length) {
+
+        throw new Error(
+          "Không tìm thấy kết quả đã kiểm tra."
+        );
+
+      }
+
+
+      savedInspectionRows =
+        rows;
+
+
+      editingExistingInspection =
+        true;
+
+
+      await loadProcedure(
+        normalizeRawSensorType(
+          selectedDevice.sensor_type
+        )
+      );
+
+
+      prefillSavedInspection(
+        rows
+      );
+
+
+      resetSaveButton(
+        "💾 LƯU THAY ĐỔI"
+      );
+
+
+      showElement(
+        "saveSection"
+      );
+
+    }
+
+    catch (error) {
+
+      alert(
+        "Không tải được dữ liệu cũ.\n\n"
+        +
+        error.message
+      );
+
+    }
+
+  };
+
+
+/* =========================================================
+   26. PREFILL OLD RESULTS
+========================================================= */
+
+function prefillSavedInspection(
+  rows
+) {
+
+  rows.forEach(row => {
+
+    const order =
+      Number(
+        row.step_order
+      );
+
+
+    const step =
+      currentProcedure.find(
+        item =>
+          Number(item.step_order)
+          ===
+          order
+      );
+
+
+    if (!step) {
+      return;
+    }
+
+
+    const type =
+      String(
+        step.input_type ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const resultValue =
+      row.result_value ??
+      "";
+
+
+    const resultStatus =
+      row.result_status ??
+      "";
+
+
+    /* NOTE */
+
+    const noteElement =
+      document.getElementById(
+        `note-${order}`
+      );
+
+
+    if (noteElement) {
+
+      noteElement.value =
+        row.note ||
+        "";
+
+    }
+
+
+    /* SELECT */
+
+    if (
+      type === "select"
+      ||
+      type === "select_note"
+      ||
+      type === "final_assessment"
+    ) {
+
+      const element =
+        document.getElementById(
+          `value-${order}`
+        );
+
+
+      if (element) {
+
+        element.value =
+          resultValue;
+
+      }
+
+    }
+
+
+    /* NUMBER */
+
+    else if (
+      type === "number_result"
+    ) {
+
+      const valueElement =
+        document.getElementById(
+          `value-${order}`
+        );
+
+
+      if (valueElement) {
+
+        valueElement.value =
+          resultValue;
+
+      }
+
+
+      const statusElement =
+        document.getElementById(
+          `assessment-${order}`
+        );
+
+
+      if (statusElement) {
+
+        statusElement.value =
+          resultStatus;
+
+      }
+
+    }
+
+
+    /* MULTI NUMBER */
+
+    else if (
+      type === "multi_number_result"
+    ) {
+
+      let values = {};
+
+
+      try {
+
+        values =
+          typeof resultValue
+          === "string"
+
+            ? JSON.parse(
+                resultValue
+              )
+
+            : resultValue;
+
+      }
+
+      catch {
+
+        values = {};
+
+      }
+
+
+      const units =
+        String(
+          step.unit || ""
+        )
+          .split(",")
+          .map(v => v.trim())
+          .filter(Boolean);
+
+
+      units.forEach(
+        (unit, index) => {
+
+          const input =
+            document.getElementById(
+              `multi-${order}-${index}`
+            );
+
+
+          if (input) {
+
+            input.value =
+              values?.[unit] ??
+              "";
+
+          }
+
+        }
+      );
+
+
+      const status =
+        document.getElementById(
+          `assessment-${order}`
+        );
+
+
+      if (status) {
+
+        status.value =
+          resultStatus;
+
+      }
+
+    }
+
+
+    /* MULTI NODE */
+
+    else if (
+      type === "multi_node_number"
+    ) {
+
+      let nodes = [];
+
+
+      try {
+
+        nodes =
+          typeof resultValue
+          === "string"
+
+            ? JSON.parse(
+                resultValue
+              )
+
+            : resultValue;
+
+      }
+
+      catch {
+
+        nodes = [];
+
+      }
+
+
+      const holder =
+        document.getElementById(
+          `nodes-${order}`
+        );
+
+
+      if (holder) {
+
+        holder.innerHTML =
+          "";
+
+
+        nodes.forEach(
+          node => {
+
+            addSensorNode(
+              order
+            );
+
+
+            const index =
+              holder.children.length
+              -
+              1;
+
+
+            const name =
+              document.getElementById(
+                `node-name-${order}-${index}`
+              );
+
+
+            const value =
+              document.getElementById(
+                `node-value-${order}-${index}`
+              );
+
+
+            const status =
+              document.getElementById(
+                `node-status-${order}-${index}`
+              );
+
+
+            if (name) {
+
+              name.value =
+                node.node ||
+                "";
+
+            }
+
+
+            if (value) {
+
+              value.value =
+                node.value ||
+                "";
+
+            }
+
+
+            if (status) {
+
+              status.value =
+                node.status ||
+                "";
+
+            }
+
+          }
+        );
+
+      }
+
+    }
+
+
+    /* OLD PHOTOS */
+
+    const urls =
+      parsePhotoUrls(
+        row.photo_urls
+      );
+
+
+    const oldPhotoBox =
+      document.getElementById(
+        `old-photo-${order}`
+      );
+
+
+    if (
+      oldPhotoBox
+      &&
+      urls.length
+    ) {
+
+      oldPhotoBox.innerHTML = `
+
+        <div
+          style="
+            color:#16803d;
+            font-weight:700;
+            margin-bottom:5px;
+          "
+        >
+          ✅ Ảnh đã lưu: ${urls.length}
+        </div>
+
+        ${
+
+          urls
+            .map(
+              (url, index) => `
+
+                <a
+                  href="${escapeHtml(url)}"
+                  target="_blank"
+                  style="
+                    display:block;
+                    margin-bottom:4px;
+                  "
+                >
+                  📷 Xem ảnh cũ ${index + 1}
+                </a>
+
+              `
+            )
+            .join("")
+
+        }
+
+      `;
+
+    }
+
+  });
+
+}
+
+
+/* =========================================================
+   27. PHOTO PREVIEW
 ========================================================= */
 
 function previewPhotos(
   event,
   order
 ) {
-
-  const files =
-    Array.from(
-      event.target.files ||
-      []
-    );
-
 
   const preview =
     document.getElementById(
@@ -1678,58 +2793,82 @@ function previewPhotos(
     "";
 
 
-  files.forEach(file => {
-
-    if (
-      !file.type.startsWith(
-        "image/"
-      )
-    ) {
-      return;
-    }
+  Array
+    .from(
+      event.target.files ||
+      []
+    )
+    .forEach(file => {
 
 
-    const reader =
-      new FileReader();
+      if (
+        !file.type.startsWith(
+          "image/"
+        )
+      ) {
+        return;
+      }
 
 
-    reader.onload =
-      function(e) {
+      const reader =
+        new FileReader();
 
-        const img =
-          document.createElement(
-            "img"
+
+      reader.onload =
+        event => {
+
+
+          const img =
+            document.createElement(
+              "img"
+            );
+
+
+          img.src =
+            event.target.result;
+
+
+          preview.appendChild(
+            img
           );
 
-
-        img.src =
-          e.target.result;
+        };
 
 
-        preview.appendChild(
-          img
-        );
+      reader.readAsDataURL(
+        file
+      );
 
-      };
-
-
-    reader.readAsDataURL(
-      file
-    );
-
-  });
+    });
 
 }
 
 
 /* =========================================================
-   22. COLLECT RESULTS
+   28. GET SAVED ROW FOR STEP
+========================================================= */
+
+function getSavedRow(
+  stepOrder
+) {
+
+  return savedInspectionRows.find(
+    row =>
+      Number(row.step_order)
+      ===
+      Number(stepOrder)
+  );
+
+}
+
+
+/* =========================================================
+   29. COLLECT RESULTS
 ========================================================= */
 
 function collectResults() {
 
-  const results =
-    [];
+  const results = [];
 
 
   for (
@@ -1752,12 +2891,9 @@ function collectResults() {
         .toLowerCase();
 
 
-    let value =
-      "";
+    let value = "";
 
-
-    let assessment =
-      "";
+    let assessment = "";
 
 
     /* MULTI NUMBER */
@@ -1769,19 +2905,14 @@ function collectResults() {
 
       const units =
         String(
-          step.unit ||
-          ""
+          step.unit || ""
         )
           .split(",")
-          .map(
-            item =>
-              item.trim()
-          )
+          .map(v => v.trim())
           .filter(Boolean);
 
 
-      const values =
-        {};
+      const values = {};
 
 
       units.forEach(
@@ -1806,16 +2937,13 @@ function collectResults() {
         values;
 
 
-      const assessmentElement =
+      assessment =
         document.getElementById(
           `assessment-${order}`
-        );
-
-
-      assessment =
-        assessmentElement
-          ? assessmentElement.value.trim()
-          : "";
+        )
+          ?.value
+          ?.trim()
+        || "";
 
     }
 
@@ -1833,8 +2961,7 @@ function collectResults() {
         );
 
 
-      const nodes =
-        [];
+      const nodes = [];
 
 
       if (holder) {
@@ -1845,43 +2972,37 @@ function collectResults() {
           .forEach(
             (_, index) => {
 
-              const name =
-                document.getElementById(
-                  `node-name-${order}-${index}`
-                )
-                  ?.value
-                  ?.trim()
-                || "";
-
-
-              const nodeValue =
-                document.getElementById(
-                  `node-value-${order}-${index}`
-                )
-                  ?.value
-                  ?.trim()
-                || "";
-
-
-              const status =
-                document.getElementById(
-                  `node-status-${order}-${index}`
-                )
-                  ?.value
-                  ?.trim()
-                || "";
-
 
               nodes.push({
 
                 node:
-                  name,
+
+                  document.getElementById(
+                    `node-name-${order}-${index}`
+                  )
+                    ?.value
+                    ?.trim()
+                  || "",
+
 
                 value:
-                  nodeValue,
+
+                  document.getElementById(
+                    `node-value-${order}-${index}`
+                  )
+                    ?.value
+                    ?.trim()
+                  || "",
+
 
                 status:
-                  status
+
+                  document.getElementById(
+                    `node-status-${order}-${index}`
+                  )
+                    ?.value
+                    ?.trim()
+                  || ""
 
               });
 
@@ -1901,57 +3022,64 @@ function collectResults() {
 
     else {
 
-      const valueElement =
+      value =
         document.getElementById(
           `value-${order}`
-        );
-
-
-      value =
-        valueElement
-          ? valueElement.value.trim()
-          : "";
-
-
-      const assessmentElement =
-        document.getElementById(
-          `assessment-${order}`
-        );
+        )
+          ?.value
+          ?.trim()
+        || "";
 
 
       assessment =
-        assessmentElement
-          ? assessmentElement.value.trim()
-          : "";
+        document.getElementById(
+          `assessment-${order}`
+        )
+          ?.value
+          ?.trim()
+        || "";
 
     }
 
 
-    const noteElement =
+    const note =
       document.getElementById(
         `note-${order}`
-      );
+      )
+        ?.value
+        ?.trim()
+      || "";
 
 
-    const note =
-      noteElement
-        ? noteElement.value.trim()
-        : "";
-
-
-    const photoElement =
+    const photoInput =
       document.getElementById(
         `photo-${order}`
       );
 
 
-    const photoCount =
-      photoElement
-        ? photoElement.files.length
+    const newPhotoCount =
+      photoInput
+        ? photoInput.files.length
         : 0;
 
 
-    /* VALIDATION */
+    const savedRow =
+      getSavedRow(
+        order
+      );
+
+
+    const existingPhotoUrls =
+      savedRow
+        ? parsePhotoUrls(
+            savedRow.photo_urls
+          )
+        : [];
+
+
+    /* =========================
+       VALIDATION
+    ========================= */
 
     if (
       toBoolean(
@@ -1959,22 +3087,18 @@ function collectResults() {
       )
     ) {
 
+
       if (
         type ===
         "multi_number_result"
       ) {
 
-        const missing =
-          Object.values(
-            value
-          )
-            .some(
-              item =>
-                item === ""
-            );
 
-
-        if (missing) {
+        if (
+          Object
+            .values(value)
+            .some(v => v === "")
+        ) {
 
           alert(
             `Bước ${order}: Bạn chưa nhập đủ giá trị đo.`
@@ -1985,9 +3109,7 @@ function collectResults() {
         }
 
 
-        if (
-          !assessment
-        ) {
+        if (!assessment) {
 
           alert(
             `Bước ${order}: Bạn chưa chọn đánh giá.`
@@ -2005,22 +3127,10 @@ function collectResults() {
         "multi_node_number"
       ) {
 
+
         if (
-          !Array.isArray(value)
+          !value.length
           ||
-          value.length === 0
-        ) {
-
-          alert(
-            `Bước ${order}: Chưa nhập mắt cảm biến.`
-          );
-
-          return null;
-
-        }
-
-
-        const invalid =
           value.some(
             item =>
               !item.node
@@ -2028,13 +3138,11 @@ function collectResults() {
               !item.value
               ||
               !item.status
-          );
-
-
-        if (invalid) {
+          )
+        ) {
 
           alert(
-            `Bước ${order}: Chưa nhập đầy đủ thông tin các mắt cảm biến.`
+            `Bước ${order}: Chưa nhập đầy đủ thông tin mắt cảm biến.`
           );
 
           return null;
@@ -2045,6 +3153,7 @@ function collectResults() {
 
 
       else {
+
 
         if (!value) {
 
@@ -2081,7 +3190,7 @@ function collectResults() {
     }
 
 
-    /* PHOTO VALIDATION */
+    /* PHOTO REQUIRED */
 
     if (
       toBoolean(
@@ -2096,8 +3205,16 @@ function collectResults() {
         );
 
 
+      const totalPhotoCount =
+        newPhotoCount
+        +
+        existingPhotoUrls.length;
+
+
       if (
-        photoCount < min
+        totalPhotoCount
+        <
+        min
       ) {
 
         alert(
@@ -2136,8 +3253,11 @@ function collectResults() {
         step.unit ||
         "",
 
-      photo_count:
-        photoCount
+      existing_photo_urls:
+        existingPhotoUrls,
+
+      new_photo_count:
+        newPhotoCount
 
     });
 
@@ -2150,7 +3270,7 @@ function collectResults() {
 
 
 /* =========================================================
-   23. SAVE TO N8N + UPLOAD PHOTOS
+   30. SAVE
 ========================================================= */
 
 async function saveInspection() {
@@ -2162,6 +3282,7 @@ async function saveInspection() {
     );
 
     return;
+
   }
 
 
@@ -2174,14 +3295,6 @@ async function saveInspection() {
   }
 
 
-  const realSensorType =
-    normalizeRawSensorType(
-      selectedDevice.sensor_type
-    );
-
-
-  /* TELEGRAM USER */
-
   const telegramUser =
     window.Telegram
       ?.WebApp
@@ -2192,43 +3305,62 @@ async function saveInspection() {
 
   const inspectorName =
     [
+
       telegramUser.last_name,
       telegramUser.first_name
+
     ]
       .filter(Boolean)
       .join(" ")
-    || "Không xác định";
+    ||
+    "Không xác định";
 
-
-  /* PAYLOAD */
 
   const payload = {
+
+    mode:
+
+      editingExistingInspection
+        ? "EDIT"
+        : "CREATE",
+
 
     job_id:
       jobId,
 
+
     device_code:
       selectedDevice.code,
 
+
     sensor_type:
-      realSensorType,
+      normalizeRawSensorType(
+        selectedDevice.sensor_type
+      ),
+
 
     procedure_code:
       currentProcedure[0]
         ?.procedure_code
       || "",
 
+
     inspector_id:
-      telegramUser.id || "",
+      telegramUser.id ||
+      "",
+
 
     inspector_name:
       inspectorName,
+
 
     checked_at:
       new Date()
         .toISOString(),
 
+
     results:
+
       results.map(
         result => ({
 
@@ -2242,15 +3374,16 @@ async function saveInspection() {
             result.result,
 
           result_status:
-            result.assessment || "",
+            result.assessment,
 
           note:
-            result.note || "",
+            result.note,
 
           unit:
-            result.unit || "",
+            result.unit,
 
-          photo_urls:
+          existing_photo_urls:
+            result.existing_photo_urls ||
             []
 
         })
@@ -2258,8 +3391,6 @@ async function saveInspection() {
 
   };
 
-
-  /* FORMDATA */
 
   const formData =
     new FormData();
@@ -2273,7 +3404,7 @@ async function saveInspection() {
   );
 
 
-  /* ATTACH PHOTOS */
+  /* NEW PHOTOS */
 
   for (
     const step
@@ -2286,49 +3417,45 @@ async function saveInspection() {
       );
 
 
-    const photoInput =
+    const input =
       document.getElementById(
         `photo-${order}`
       );
 
 
     if (
-      !photoInput
+      !input
       ||
-      !photoInput.files
-      ||
-      photoInput.files.length === 0
+      !input.files
     ) {
+
       continue;
+
     }
 
 
-    const files =
-      Array.from(
-        photoInput.files
+    Array
+      .from(
+        input.files
+      )
+      .forEach(
+        (file, index) => {
+
+          formData.append(
+
+            `photo_step_${order}_${index + 1}`,
+
+            file,
+
+            file.name
+
+          );
+
+        }
       );
-
-
-    files.forEach(
-      (file, index) => {
-
-        const fieldName =
-          `photo_step_${order}_${index + 1}`;
-
-
-        formData.append(
-          fieldName,
-          file,
-          file.name
-        );
-
-      }
-    );
 
   }
 
-
-  /* SAVE BUTTON */
 
   const saveButton =
     document.querySelector(
@@ -2349,21 +3476,11 @@ async function saveInspection() {
 
   try {
 
-    console.log(
-      "POST SAVE:",
-      SAVE_INSPECTION_API
-    );
-
-
-    console.log(
-      "PAYLOAD:",
-      payload
-    );
-
-
     const response =
       await fetch(
+
         SAVE_INSPECTION_API,
+
         {
 
           method:
@@ -2373,18 +3490,12 @@ async function saveInspection() {
             formData
 
         }
+
       );
 
 
     const responseText =
       await response.text();
-
-
-    console.log(
-      "SAVE RESPONSE:",
-      response.status,
-      responseText
-    );
 
 
     if (!response.ok) {
@@ -2398,66 +3509,98 @@ async function saveInspection() {
     }
 
 
-    let responseData =
-      {};
+    /* đánh dấu local */
 
-
-    if (
-      responseText.trim()
-    ) {
-
-      try {
-
-        responseData =
-          JSON.parse(
-            responseText
-          );
-
-      }
-
-      catch {
-
-        responseData = {
-
-          message:
-            responseText
-
-        };
-
-      }
-
-    }
-
-
-    inspectionResults[
+    deviceStatusMap[
       selectedDevice.code
     ] = {
 
-      saved:
-        true,
+      device_code:
+        selectedDevice.code,
 
-      saved_at:
+      sensor_type:
+        selectedDevice.sensor_type,
+
+      procedure_code:
+        currentProcedure[0]
+          ?.procedure_code
+        || "",
+
+      status:
+        "COMPLETED",
+
+      inspector_id:
+        telegramUser.id ||
+        "",
+
+      inspector_name:
+        inspectorName,
+
+      checked_at:
         new Date()
-          .toISOString(),
-
-      response:
-        responseData
+          .toISOString()
 
     };
 
 
     alert(
-      `✅ Đã lưu kết quả kiểm tra ${selectedDevice.code}.`
+
+      editingExistingInspection
+
+        ? `✅ Đã cập nhật kết quả ${selectedDevice.code}.`
+
+        : `✅ Đã lưu kết quả kiểm tra ${selectedDevice.code}.`
+
     );
 
 
-    if (saveButton) {
+    editingExistingInspection =
+      false;
 
-      saveButton.disabled =
-        true;
 
-      saveButton.textContent =
-        "✅ ĐÃ LƯU KẾT QUẢ";
+    savedInspectionRows =
+      [];
+
+
+    /* refresh group */
+
+    renderDeviceTypes();
+
+
+    if (selectedGroup) {
+
+      renderDevices(
+        deviceGroups[
+          selectedGroup
+        ] || []
+      );
+
+    }
+
+
+    const status =
+      deviceStatusMap[
+        selectedDevice.code
+      ];
+
+
+    const deviceButton =
+      findDeviceButton(
+        selectedDevice.code
+      );
+
+
+    if (deviceButton) {
+
+      showCompletedDevice(
+
+        selectedDevice,
+
+        status,
+
+        deviceButton
+
+      );
 
     }
 
@@ -2466,27 +3609,26 @@ async function saveInspection() {
   catch (error) {
 
     console.error(
-      "SAVE INSPECTION ERROR:",
       error
     );
 
 
     alert(
-      "❌ Không lưu được kết quả kiểm tra.\n\n"
+      "❌ Không lưu được kết quả.\n\n"
       +
       error.message
     );
 
 
-    if (saveButton) {
+    resetSaveButton(
 
-      saveButton.disabled =
-        false;
+      editingExistingInspection
 
-      saveButton.textContent =
-        "💾 LƯU KẾT QUẢ KIỂM TRA";
+        ? "💾 LƯU THAY ĐỔI"
 
-    }
+        : "💾 LƯU KẾT QUẢ KIỂM TRA"
+
+    );
 
   }
 
@@ -2494,30 +3636,130 @@ async function saveInspection() {
 
 
 /* =========================================================
-   24. HELPERS
+   31. HELPERS
 ========================================================= */
 
 function parseOptions(value) {
 
   if (!value) {
+
     return [];
+
   }
 
 
   if (
     Array.isArray(value)
   ) {
+
     return value;
+
   }
 
 
   return String(value)
     .split("|")
-    .map(
-      item =>
-        item.trim()
-    )
+    .map(v => v.trim())
     .filter(Boolean);
+
+}
+
+
+function parsePhotoUrls(value) {
+
+  if (!value) {
+
+    return [];
+
+  }
+
+
+  if (
+    Array.isArray(value)
+  ) {
+
+    return value;
+
+  }
+
+
+  try {
+
+    const parsed =
+      JSON.parse(value);
+
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+
+  }
+
+  catch {
+
+    return [];
+
+  }
+
+}
+
+
+function formatResultValue(value) {
+
+  if (
+    value === null
+    ||
+    value === undefined
+  ) {
+
+    return "";
+
+  }
+
+
+  if (
+    typeof value
+    === "object"
+  ) {
+
+    return JSON.stringify(
+      value
+    );
+
+  }
+
+
+  const text =
+    String(value);
+
+
+  try {
+
+    const parsed =
+      JSON.parse(text);
+
+
+    if (
+      typeof parsed
+      === "object"
+    ) {
+
+      return JSON.stringify(
+        parsed,
+        null,
+        2
+      );
+
+    }
+
+  }
+
+  catch {
+    // ignore
+  }
+
+
+  return text;
 
 }
 
@@ -2529,7 +3771,9 @@ function toBoolean(value) {
     ||
     value === 1
   ) {
+
     return true;
+
   }
 
 
@@ -2540,11 +3784,13 @@ function toBoolean(value) {
 
 
   return (
+
     normalized === "true"
     ||
     normalized === "1"
     ||
     normalized === "yes"
+
   );
 
 }
@@ -2570,12 +3816,131 @@ function formatStatus(status) {
 
 
   return (
+
     map[status]
     ||
     status
     ||
     "-"
+
   );
+
+}
+
+
+function formatDateTime(value) {
+
+  if (!value) {
+
+    return "-";
+
+  }
+
+
+  try {
+
+    return new Intl.DateTimeFormat(
+      "vi-VN",
+      {
+
+        timeZone:
+          "Asia/Ho_Chi_Minh",
+
+        day:
+          "2-digit",
+
+        month:
+          "2-digit",
+
+        year:
+          "numeric",
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        hour12:
+          false
+
+      }
+    ).format(
+      new Date(value)
+    );
+
+  }
+
+  catch {
+
+    return value;
+
+  }
+
+}
+
+
+function resetSaveButton(
+  text
+) {
+
+  const button =
+    document.querySelector(
+      "#saveSection button"
+    );
+
+
+  if (!button) {
+
+    return;
+
+  }
+
+
+  button.disabled =
+    false;
+
+
+  button.textContent =
+    text;
+
+}
+
+
+function findDeviceButton(
+  deviceCode
+) {
+
+  const buttons =
+    document.querySelectorAll(
+      ".device-button"
+    );
+
+
+  for (
+    const button
+    of buttons
+  ) {
+
+    if (
+      button
+        .querySelector(
+          ".device-code"
+        )
+        ?.textContent
+        ?.includes(
+          deviceCode
+        )
+    ) {
+
+      return button;
+
+    }
+
+  }
+
+
+  return null;
 
 }
 
@@ -2603,66 +3968,49 @@ function setText(
 
 function showElement(id) {
 
-  const element =
-    document.getElementById(
-      id
-    );
-
-
-  if (element) {
-
-    element.classList.remove(
-      "hidden"
-    );
-
-  }
+  document
+    .getElementById(id)
+    ?.classList
+    .remove("hidden");
 
 }
 
 
 function hideElement(id) {
 
-  const element =
-    document.getElementById(
-      id
-    );
-
-
-  if (element) {
-
-    element.classList.add(
-      "hidden"
-    );
-
-  }
+  document
+    .getElementById(id)
+    ?.classList
+    .add("hidden");
 
 }
 
 
 function setLoading(text) {
 
-  const loading =
+  const element =
     document.getElementById(
       "loading"
     );
 
 
-  if (!loading) {
+  if (!element) {
     return;
   }
 
 
-  loading.innerHTML = `
+  element.innerHTML = `
 
     <div class="spinner"></div>
 
     <div>
       ${escapeHtml(text)}
     </div>
+
   `;
 
 
-  loading.style.display =
+  element.style.display =
     "block";
 
 }
@@ -2670,22 +4018,26 @@ function setLoading(text) {
 
 function showError(message) {
 
-  const loading =
+  const element =
     document.getElementById(
       "loading"
     );
 
 
-  if (loading) {
-
-    loading.innerHTML = `
-
-      <div class="error-box">
-        ${escapeHtml(message)}
-      </div>
-    `;
-
+  if (!element) {
+    return;
   }
+
+
+  element.innerHTML = `
+
+    <div class="error-box">
+
+      ${escapeHtml(message)}
+
+    </div>
+
+  `;
 
 }
 
@@ -2693,7 +4045,8 @@ function showError(message) {
 function escapeHtml(value) {
 
   return String(
-    value ?? ""
+    value ??
+    ""
   )
     .replaceAll(
       "&",
@@ -2720,7 +4073,7 @@ function escapeHtml(value) {
 
 
 /* =========================================================
-   25. EXPOSE FUNCTIONS
+   32. EXPOSE FUNCTIONS
 ========================================================= */
 
 window.saveInspection =
