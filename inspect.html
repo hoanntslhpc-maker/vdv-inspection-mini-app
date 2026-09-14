@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Kiểm tra thiết bị</title>
+
+  <link rel="stylesheet" href="inspect.css">
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+
+<body>
+
+<div class="app">
+
+  <header class="page-header">
+    <h1>KIỂM TRA THIẾT BỊ</h1>
+    <div id="jobBadge" class="job-badge"></div>
+  </header>
+
+  <div id="loading" class="card center">
+    Đang tải dữ liệu...
+  </div>
+
+  <div id="errorBox" class="error hidden"></div>
+
+  <!-- THÔNG TIN JOB -->
+  <section id="jobSection" class="hidden">
+
+    <div id="jobInfo" class="card"></div>
+
+    <h2>Loại thiết bị</h2>
+
+    <div
+      id="typeList"
+      class="button-list"
+    ></div>
+
+  </section>
+
+
+  <!-- DANH SÁCH THIẾT BỊ -->
+  <section
+    id="deviceSection"
+    class="hidden"
+  >
+
+    <button
+      id="backTypes"
+      class="back-button"
+      type="button"
+    >
+      ← Quay lại
+    </button>
+
+    <h2 id="deviceTitle"></h2>
+
+    <div
+      id="deviceList"
+      class="button-list"
+    ></div>
+
+  </section>
+
+
+  <!-- FORM QUY TRÌNH -->
+  <section
+    id="procedureSection"
+    class="hidden"
+  >
+
+    <button
+      id="backDevices"
+      class="back-button"
+      type="button"
+    >
+      ← Danh sách thiết bị
+    </button>
+
+    <div
+      id="deviceInfo"
+      class="card"
+    ></div>
+
+    <div class="progress-card">
+      <div id="procedureProgressText"></div>
+
+      <div class="progress-track">
+        <div
+          id="procedureProgressBar"
+          class="progress-fill"
+        ></div>
+      </div>
+    </div>
+
+    <div id="stepsContainer"></div>
+
+    <button
+      id="saveInspection"
+      class="primary-button"
+      type="button"
+    >
+      LƯU KẾT QUẢ KIỂM TRA
+    </button>
+
+    <div
+      id="saveStatus"
+      class="save-status"
+    ></div>
+
+  </section>
+
+</div>
+
+<script src="inspect.js"></script>
+
+</body>
+</html>
