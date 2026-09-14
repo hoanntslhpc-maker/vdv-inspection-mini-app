@@ -26,71 +26,104 @@
 
 <body>
 
-  <main class="app-container">
+  <div class="app-shell">
 
-    <!-- =========================================
+
+    <!-- =====================================================
          HEADER
-    ========================================== -->
+    ====================================================== -->
 
-    <section class="page-header">
+    <header class="top-header">
 
-      <h1>
-        KIỂM TRA THIẾT BỊ
-      </h1>
+      <div class="top-header-inner">
 
-    </section>
+        <div>
 
-
-    <!-- =========================================
-         LOADING
-    ========================================== -->
-
-    <section
-      id="loading"
-      class="loading-card"
-    >
-
-      Đang tải dữ liệu...
-
-    </section>
-
-
-    <!-- =========================================
-         JOB INFO
-    ========================================== -->
-
-    <section
-      id="jobInfo"
-      class="card hidden"
-    >
-
-      <div class="job-grid">
-
-        <div class="job-field">
-
-          <div class="job-label">
-            Mã công việc
+          <div class="app-kicker">
+            VDV INSPECTION
           </div>
 
-          <div
-            id="jobId"
-            class="job-value"
-          >
-            -
+          <h1 class="app-title">
+            KIỂM TRA THIẾT BỊ
+          </h1>
+
+          <div class="app-subtitle">
+            Kiểm tra hiện trường và ghi nhận kết quả thiết bị quan trắc
+          </div>
+
+        </div>
+
+      </div>
+
+    </header>
+
+
+
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
+    <main class="main-container">
+
+
+      <!-- ===================================================
+           LOADING
+      ==================================================== -->
+
+      <section
+        id="loading"
+        class="loading-card"
+      >
+
+        <div class="spinner"></div>
+
+        <div>
+          Đang tải dữ liệu...
+        </div>
+
+      </section>
+
+
+
+      <!-- ===================================================
+           JOB INFORMATION
+      ==================================================== -->
+
+      <section
+        id="jobInfo"
+        class="job-card hidden"
+      >
+
+        <div class="job-card-header">
+
+          <div>
+
+            <div class="section-kicker">
+              THÔNG TIN CÔNG VIỆC
+            </div>
+
+            <h2 class="job-main-title">
+
+              <span id="jobId">
+                -
+              </span>
+
+            </h2>
+
           </div>
 
         </div>
 
 
-        <div class="job-field">
+        <div class="job-description">
 
-          <div class="job-label">
-            Nội dung
+          <div class="info-label">
+            Nội dung yêu cầu
           </div>
 
           <div
             id="jobRequest"
-            class="job-value"
+            class="info-value-large"
           >
             -
           </div>
@@ -98,15 +131,15 @@
         </div>
 
 
-        <div class="job-field">
+        <div class="job-description">
 
-          <div class="job-label">
+          <div class="info-label">
             Người yêu cầu
           </div>
 
           <div
             id="jobRequester"
-            class="job-value"
+            class="info-value"
           >
             -
           </div>
@@ -114,161 +147,217 @@
         </div>
 
 
-        <div class="job-field">
+        <div class="job-summary-grid">
 
-          <div class="job-label">
-            Tổng thiết bị
+
+          <div class="summary-box">
+
+            <div class="summary-label">
+              Tổng thiết bị
+            </div>
+
+            <div
+              id="deviceCount"
+              class="summary-value"
+            >
+              0
+            </div>
+
           </div>
 
-          <div
-            id="deviceCount"
-            class="job-value"
-          >
-            0
+
+          <div class="summary-box">
+
+            <div class="summary-label">
+              Trạng thái
+            </div>
+
+            <div
+              id="jobStatus"
+              class="summary-value summary-status"
+            >
+              -
+            </div>
+
           </div>
+
 
         </div>
 
-
-        <div class="job-field">
-
-          <div class="job-label">
-            Trạng thái
-          </div>
-
-          <div
-            id="jobStatus"
-            class="job-value"
-          >
-            -
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
+      </section>
 
 
-    <!-- =========================================
-         CHỌN LOẠI THIẾT BỊ
-    ========================================== -->
 
-    <section
-      id="deviceTypeSection"
-      class="section hidden"
-    >
+      <!-- ===================================================
+           DEVICE TYPE
+      ==================================================== -->
 
-      <h2>
-        1. Chọn loại thiết bị
-      </h2>
-
-      <div
-        id="deviceTypes"
-        class="device-type-grid"
-      ></div>
-
-    </section>
-
-
-    <!-- =========================================
-         CHỌN THIẾT BỊ
-    ========================================== -->
-
-    <section
-      id="deviceSection"
-      class="section hidden"
-    >
-
-      <h2>
-        2. Chọn thiết bị kiểm tra
-      </h2>
-
-      <div
-        id="deviceList"
-        class="device-list"
-      ></div>
-
-    </section>
-
-
-    <!-- =========================================
-         QUY TRÌNH
-    ========================================== -->
-
-    <section
-      id="procedureSection"
-      class="section hidden"
-    >
-
-      <h2>
-        3. Thực hiện quy trình kiểm tra
-      </h2>
-
-
-      <div
-        id="selectedDeviceBox"
-        class="selected-device-box"
+      <section
+        id="deviceTypeSection"
+        class="content-section hidden"
       >
 
-        <div class="selected-device-label">
-          Thiết bị đang kiểm tra
+        <div class="section-title-row">
+
+          <div class="section-number">
+            1
+          </div>
+
+          <h2 class="section-title">
+            Chọn loại thiết bị
+          </h2>
+
         </div>
+
 
         <div
-          id="selectedDeviceCode"
-          class="selected-device-code"
+          id="deviceTypes"
+          class="device-type-grid"
         ></div>
 
-      </div>
+      </section>
 
 
-      <div
-        id="procedureList"
-      ></div>
 
-    </section>
+      <!-- ===================================================
+           DEVICE LIST
+      ==================================================== -->
 
-
-    <!-- =========================================
-         SAVE
-    ========================================== -->
-
-    <section
-      id="saveSection"
-      class="save-section hidden"
-    >
-
-      <button
-        id="saveInspectionButton"
-        type="button"
-        class="btn btn-primary btn-save"
-        onclick="saveInspection(event)"
+      <section
+        id="deviceSection"
+        class="content-section hidden"
       >
-        💾 LƯU KẾT QUẢ KIỂM TRA
-      </button>
 
-    </section>
+        <div class="section-title-row">
+
+          <div class="section-number">
+            2
+          </div>
+
+          <h2 class="section-title">
+            Chọn thiết bị kiểm tra
+          </h2>
+
+        </div>
 
 
-    <!-- =========================================
-         BACK
-    ========================================== -->
+        <div
+          id="deviceList"
+          class="device-list"
+        ></div>
 
-    <section class="bottom-actions">
+      </section>
 
-      <button
-        type="button"
-        class="btn btn-secondary"
-        onclick="goBackToTelegram()"
+
+
+      <!-- ===================================================
+           PROCEDURE
+      ==================================================== -->
+
+      <section
+        id="procedureSection"
+        class="content-section hidden"
       >
-        ← Quay lại
-      </button>
 
-    </section>
+        <div class="section-title-row">
 
-  </main>
+          <div class="section-number">
+            3
+          </div>
 
+          <h2 class="section-title">
+            Thực hiện quy trình kiểm tra
+          </h2>
+
+        </div>
+
+
+
+        <!-- SELECTED DEVICE -->
+
+        <div class="selected-device-card">
+
+          <div class="selected-device-label">
+            Thiết bị đang kiểm tra
+          </div>
+
+          <div
+            id="selectedDeviceCode"
+            class="selected-device-code"
+          >
+          </div>
+
+        </div>
+
+
+
+        <!-- PROCEDURE CONTENT -->
+
+        <div
+          id="procedureList"
+          class="procedure-list"
+        ></div>
+
+      </section>
+
+
+
+      <!-- ===================================================
+           SAVE
+      ==================================================== -->
+
+      <section
+        id="saveSection"
+        class="save-section hidden"
+      >
+
+        <button
+          id="saveInspectionButton"
+          type="button"
+          class="save-button"
+          onclick="saveInspection(event)"
+        >
+
+          <span class="save-icon">
+            💾
+          </span>
+
+          <span>
+            LƯU KẾT QUẢ KIỂM TRA
+          </span>
+
+        </button>
+
+      </section>
+
+
+
+      <!-- ===================================================
+           FOOTER ACTIONS
+      ==================================================== -->
+
+      <section class="footer-actions">
+
+        <button
+          type="button"
+          class="back-button"
+          onclick="goBackToTelegram()"
+        >
+          ← Quay lại
+        </button>
+
+      </section>
+
+
+    </main>
+
+  </div>
+
+
+
+  <!-- =====================================================
+       JAVASCRIPT
+  ====================================================== -->
 
   <script src="./inspect.js"></script>
 
@@ -278,8 +367,7 @@
     try {
 
       if (
-        window.Telegram
-        &&
+        window.Telegram &&
         window.Telegram.WebApp
       ) {
 
@@ -294,11 +382,12 @@
     catch (error) {
 
       console.log(
-        "Telegram init error:",
+        "Telegram WebApp init error:",
         error
       );
 
     }
+
 
 
     function goBackToTelegram() {
@@ -306,10 +395,8 @@
       try {
 
         if (
-          window.Telegram
-          &&
-          window.Telegram.WebApp
-          &&
+          window.Telegram &&
+          window.Telegram.WebApp &&
           typeof window.Telegram.WebApp.close === "function"
         ) {
 
@@ -342,9 +429,10 @@
     }
 
 
+
     /*
-      Chặn mọi submit ngoài ý muốn.
-      Mini App chỉ lưu bằng fetch().
+      Chặn submit ngoài ý muốn.
+      Toàn bộ thao tác lưu sử dụng fetch().
     */
 
     document.addEventListener(
@@ -359,6 +447,7 @@
     );
 
   </script>
+
 
 </body>
 

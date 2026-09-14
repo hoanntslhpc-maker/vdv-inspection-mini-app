@@ -163,6 +163,11 @@ async function loadJob() {
     }
 
 
+    /*
+      Đọc trạng thái thiết bị đã kiểm tra
+      từ Inspection_Device_Status.
+    */
+
     await loadDeviceStatuses();
 
 
@@ -217,7 +222,7 @@ async function loadDeviceStatuses() {
     if (!response.ok) {
 
       console.warn(
-        "Không tải được trạng thái thiết bị"
+        "Không tải được trạng thái thiết bị."
       );
 
       return;
@@ -246,9 +251,7 @@ async function loadDeviceStatuses() {
       Array.isArray(data)
         ? data
         : (
-            Array.isArray(
-              data.results
-            )
+            Array.isArray(data.results)
               ? data.results
               : []
           );
@@ -260,8 +263,7 @@ async function loadDeviceStatuses() {
         const code =
           String(
             row.device_code || ""
-          )
-            .trim();
+          ).trim();
 
 
         if (!code) {
@@ -280,7 +282,7 @@ async function loadDeviceStatuses() {
 
 
     console.log(
-      "DEVICE STATUS:",
+      "DEVICE STATUS MAP:",
       deviceStatusMap
     );
 
@@ -384,9 +386,7 @@ function getDeviceGroupKey(
 
 
   if (
-    stressTypes.includes(
-      type
-    )
+    stressTypes.includes(type)
   ) {
 
     return "STRESS_GROUP";
@@ -641,7 +641,7 @@ function renderDeviceTypes() {
 
 
 /* =========================================================
-   12. SELECT GROUP
+   12. SELECT DEVICE GROUP
 ========================================================= */
 
 function selectDeviceGroup(
@@ -950,7 +950,7 @@ async function selectDevice(
 
 
 /* =========================================================
-   15. COMPLETED DEVICE
+   15. SHOW COMPLETED DEVICE
 ========================================================= */
 
 function showCompletedDevice(
@@ -1047,7 +1047,9 @@ function showCompletedDevice(
           margin-bottom:14px;
         "
       >
+
         ✅ Thiết bị đã kiểm tra
+
       </div>
 
 
@@ -1093,7 +1095,9 @@ function showCompletedDevice(
         style="margin-top:16px;"
         onclick="viewSavedResult()"
       >
+
         👁 XEM KẾT QUẢ
+
       </button>
 
 
@@ -1103,7 +1107,9 @@ function showCompletedDevice(
         style="margin-top:10px;"
         onclick="editSavedInspection()"
       >
+
         ✏️ CHỈNH SỬA
+
       </button>
 
     </div>
@@ -1362,14 +1368,18 @@ function createProcedureStep(
     <div class="step-header">
 
       <div class="step-number">
+
         ${order}
+
       </div>
 
       <div class="step-title">
+
         ${escapeHtml(
           step.step_title ||
           ""
         )}
+
       </div>
 
     </div>
@@ -1385,10 +1395,12 @@ function createProcedureStep(
         </div>
 
         <div class="step-info-content">
+
           ${escapeHtml(
             step.method ||
             ""
           )}
+
         </div>
 
       </div>
@@ -1401,10 +1413,12 @@ function createProcedureStep(
         </div>
 
         <div class="step-info-content">
+
           ${escapeHtml(
             step.standard ||
             ""
           )}
+
         </div>
 
       </div>
@@ -1441,7 +1455,11 @@ function createProcedureStep(
               </div>
 
               <div class="photo-required">
-                Tối thiểu ${photoMin || 1} ảnh
+
+                Tối thiểu
+                ${photoMin || 1}
+                ảnh
+
               </div>
 
 
@@ -1718,7 +1736,8 @@ function renderInput(
       )
         .split(",")
         .map(
-          value => value.trim()
+          value =>
+            value.trim()
         )
         .filter(Boolean);
 
@@ -1842,7 +1861,7 @@ function renderInput(
   }
 
 
-  /* DEFAULT TEXT */
+  /* DEFAULT */
 
   container.innerHTML = `
 
@@ -2012,7 +2031,7 @@ function addSensorNode(order) {
 
 
 /* =========================================================
-   21. FETCH SAVED RESULTS
+   21. FETCH SAVED INSPECTION
 ========================================================= */
 
 async function fetchSavedInspection() {
@@ -2052,9 +2071,7 @@ async function fetchSavedInspection() {
   return Array.isArray(data)
     ? data
     : (
-        Array.isArray(
-          data.results
-        )
+        Array.isArray(data.results)
           ? data.results
           : []
       );
@@ -2063,7 +2080,7 @@ async function fetchSavedInspection() {
 
 
 /* =========================================================
-   22. VIEW SAVED RESULTS
+   22. VIEW SAVED RESULT
 ========================================================= */
 
 window.viewSavedResult =
@@ -2133,7 +2150,9 @@ window.viewSavedResult =
               <div class="step-header">
 
                 <div class="step-number">
+
                   ${row.step_order}
+
                 </div>
 
                 <div class="step-title">
@@ -2304,7 +2323,7 @@ window.viewSavedResult =
 
 
 /* =========================================================
-   23. EDIT SAVED RESULTS
+   23. EDIT SAVED RESULT
 ========================================================= */
 
 window.editSavedInspection =
@@ -2370,7 +2389,7 @@ window.editSavedInspection =
 
 
 /* =========================================================
-   24. PREFILL SAVED RESULTS
+   24. PREFILL
 ========================================================= */
 
 function prefillSavedInspection(
@@ -2422,15 +2441,15 @@ function prefillSavedInspection(
         "";
 
 
-      const noteElement =
+      const note =
         document.getElementById(
           `note-${order}`
         );
 
 
-      if (noteElement) {
+      if (note) {
 
-        noteElement.value =
+        note.value =
           row.note ||
           "";
 
@@ -2447,15 +2466,15 @@ function prefillSavedInspection(
         type === "final_assessment"
       ) {
 
-        const element =
+        const input =
           document.getElementById(
             `value-${order}`
           );
 
 
-        if (element) {
+        if (input) {
 
-          element.value =
+          input.value =
             resultValue;
 
         }
@@ -2469,29 +2488,29 @@ function prefillSavedInspection(
         type === "number_result"
       ) {
 
-        const valueElement =
+        const input =
           document.getElementById(
             `value-${order}`
           );
 
 
-        const statusElement =
+        const assessment =
           document.getElementById(
             `assessment-${order}`
           );
 
 
-        if (valueElement) {
+        if (input) {
 
-          valueElement.value =
+          input.value =
             resultValue;
 
         }
 
 
-        if (statusElement) {
+        if (assessment) {
 
-          statusElement.value =
+          assessment.value =
             resultStatus;
 
         }
@@ -2551,7 +2570,8 @@ function prefillSavedInspection(
             if (input) {
 
               input.value =
-                values?.[unit] ??
+                values?.[unit]
+                ??
                 "";
 
             }
@@ -2560,15 +2580,15 @@ function prefillSavedInspection(
         );
 
 
-        const status =
+        const assessment =
           document.getElementById(
             `assessment-${order}`
           );
 
 
-        if (status) {
+        if (assessment) {
 
-          status.value =
+          assessment.value =
             resultStatus;
 
         }
@@ -2617,6 +2637,7 @@ function prefillSavedInspection(
 
           nodes.forEach(
             node => {
+
 
               addSensorNode(
                 order
@@ -2833,7 +2854,7 @@ function previewPhotos(
 
 
 /* =========================================================
-   26. SAVED ROW
+   26. GET SAVED ROW
 ========================================================= */
 
 function getSavedRow(
@@ -3084,7 +3105,9 @@ function collectResults() {
         : [];
 
 
-    /* VALIDATION */
+    /* =========================
+       REQUIRED VALIDATION
+    ========================= */
 
     if (
       toBoolean(
@@ -3195,7 +3218,9 @@ function collectResults() {
     }
 
 
-    /* PHOTO REQUIRED */
+    /* =========================
+       PHOTO REQUIRED
+    ========================= */
 
     if (
       toBoolean(
@@ -3265,10 +3290,14 @@ function collectResults() {
 
 
 /* =========================================================
-   28. SAVE
+   28. SAVE INSPECTION
 ========================================================= */
 
 async function saveInspection(event) {
+
+  /*
+    Chặn submit / reload trang
+  */
 
   if (event) {
 
@@ -3323,6 +3352,10 @@ async function saveInspection(event) {
     ||
     "Không xác định";
 
+
+  /* =========================
+     PAYLOAD
+  ========================= */
 
   const payload = {
 
@@ -3403,6 +3436,10 @@ async function saveInspection(event) {
   };
 
 
+  /* =========================
+     FORMDATA
+  ========================= */
+
   const formData =
     new FormData();
 
@@ -3415,7 +3452,9 @@ async function saveInspection(event) {
   );
 
 
-  /* ADD NEW PHOTOS */
+  /* =========================
+     NEW PHOTOS
+  ========================= */
 
   for (
     const step
@@ -3469,6 +3508,10 @@ async function saveInspection(event) {
   }
 
 
+  /* =========================
+     SAVE BUTTON
+  ========================= */
+
   const saveButton =
     document.getElementById(
       "saveInspectionButton"
@@ -3490,6 +3533,16 @@ async function saveInspection(event) {
   try {
 
     console.log(
+      "=========================="
+    );
+
+
+    console.log(
+      "SAVE START"
+    );
+
+
+    console.log(
       "SAVE URL:",
       SAVE_INSPECTION_API
     );
@@ -3501,24 +3554,14 @@ async function saveInspection(event) {
     );
 
 
-    const controller =
-      new AbortController();
-
-
-    const timeoutId =
-      setTimeout(
-        () => {
-
-          controller.abort();
-
-        },
-        120000
-      );
-
-
     /*
-      Không tự thêm Content-Type.
-      Browser tự tạo multipart boundary.
+      QUAN TRỌNG:
+
+      KHÔNG dùng AbortController.
+      KHÔNG đặt timeout.
+
+      Điện thoại có thể mất nhiều thời gian
+      upload toàn bộ ảnh lên n8n.
     */
 
     const response =
@@ -3530,18 +3573,16 @@ async function saveInspection(event) {
             "POST",
 
           body:
-            formData,
-
-          signal:
-            controller.signal
+            formData
 
         }
       );
 
 
-    clearTimeout(
-      timeoutId
-    );
+    /*
+      Không tự set Content-Type.
+      Browser tự tạo multipart boundary.
+    */
 
 
     const responseText =
@@ -3549,8 +3590,13 @@ async function saveInspection(event) {
 
 
     console.log(
+      "SAVE HTTP STATUS:",
+      response.status
+    );
+
+
+    console.log(
       "SAVE RESPONSE:",
-      response.status,
       responseText
     );
 
@@ -3566,13 +3612,16 @@ async function saveInspection(event) {
     }
 
 
-    /*
-      Reload trạng thái thật từ backend
-      thay vì chỉ tự gán local.
-    */
+    /* =========================
+       RELOAD DEVICE STATUS
+    ========================= */
 
     await loadDeviceStatuses();
 
+
+    /* =========================
+       SUCCESS
+    ========================= */
 
     alert(
 
@@ -3593,8 +3642,17 @@ async function saveInspection(event) {
       [];
 
 
+    /*
+      Refresh nhóm thiết bị.
+    */
+
     renderDeviceTypes();
 
+
+    /*
+      Refresh danh sách thiết bị
+      của nhóm hiện tại.
+    */
 
     if (selectedGroup) {
 
@@ -3608,6 +3666,11 @@ async function saveInspection(event) {
 
     }
 
+
+    /*
+      Hiện ngay màn hình
+      "Thiết bị đã kiểm tra".
+    */
 
     const status =
       deviceStatusMap[
@@ -3639,6 +3702,16 @@ async function saveInspection(event) {
 
     }
 
+
+    console.log(
+      "SAVE COMPLETE"
+    );
+
+
+    console.log(
+      "=========================="
+    );
+
   }
 
   catch (error) {
@@ -3649,26 +3722,14 @@ async function saveInspection(event) {
     );
 
 
-    let message =
-      error.message ||
-      "Không xác định";
-
-
-    if (
-      error.name ===
-      "AbortError"
-    ) {
-
-      message =
-        "Hết thời gian chờ lưu dữ liệu.";
-
-    }
-
-
     alert(
       "❌ Không lưu được kết quả.\n\n"
       +
-      message
+      (
+        error.message
+        ||
+        "Không xác định"
+      )
     );
 
 
@@ -3910,9 +3971,7 @@ function formatDateTime(value) {
 }
 
 
-function resetSaveButton(
-  text
-) {
+function resetSaveButton(text) {
 
   const button =
     document.getElementById(
@@ -4123,11 +4182,12 @@ function escapeHtml(value) {
 
 
 /* =========================================================
-   30. EXPOSE
+   30. EXPOSE FUNCTIONS
 ========================================================= */
 
 window.saveInspection =
   saveInspection;
+
 
 window.addSensorNode =
   addSensorNode;
