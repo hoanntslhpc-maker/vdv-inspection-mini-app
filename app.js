@@ -1,7 +1,8 @@
 const tg = window.Telegram.WebApp;
 
-tg.ready();
-tg.expand();
+/* =========================================
+   CẤU HÌNH API
+========================================= */
 
 const SEARCH_API_URL =
   "https://kiemtrathietbi.app.n8n.cloud/webhook/search-device";
@@ -9,9 +10,43 @@ const SEARCH_API_URL =
 const CREATE_JOB_URL =
   "https://kiemtrathietbi.app.n8n.cloud/webhook/create-inspection";
 
-const searchInput = document.getElementById("searchInput");
-const results = document.getElementById("results");
-const status = document.getElementById("status");
+
+/* =========================================
+   KHỞI TẠO TELEGRAM MINI APP
+========================================= */
+
+try {
+  tg.ready();
+  tg.expand();
+
+  console.log("=== TELEGRAM DEBUG ===");
+  console.log("initData:", tg.initData);
+  console.log("initDataUnsafe:", tg.initDataUnsafe);
+  console.log("user:", tg.initDataUnsafe?.user);
+  console.log("======================");
+
+} catch (error) {
+
+  console.error(
+    "Telegram WebApp init error:",
+    error
+  );
+
+}
+
+
+/* =========================================
+   DOM
+========================================= */
+
+const searchInput =
+  document.getElementById("searchInput");
+
+const results =
+  document.getElementById("results");
+
+const status =
+  document.getElementById("status");
 
 const selectedCount =
   document.getElementById("selectedCount");
@@ -25,55 +60,60 @@ const requestContent =
 const createJobBtn =
   document.getElementById("createJobBtn");
 
-const selectedDevices = new Map();
-
-let searchTimer = null;
-
 
 /* =========================================
-   KHỞI TẠO TELEGRAM MINI APP
+   BIẾN
 ========================================= */
 
-try {
-  tg.ready();
-  tg.expand();
-} catch (error) {
-  console.log("Telegram WebApp init:", error);
-}
+const selectedDevices =
+  new Map();
+
+let searchTimer = null;
 
 
 /* =========================================
    TÌM THIẾT BỊ
 ========================================= */
 
-searchInput.addEventListener("input", () => {
+searchInput.addEventListener(
+  "input",
+  () => {
 
-  clearTimeout(searchTimer);
+    clearTimeout(searchTimer);
 
-  const keyword =
-    searchInput.value.trim();
+    const keyword =
+      searchInput.value.trim();
 
-  if (keyword.length < 2) {
+    if (keyword.length < 2) {
 
-    results.innerHTML = "";
+      results.innerHTML = "";
+
+      status.innerText =
+        "Nhập ít nhất 2 ký tự.";
+
+      return;
+    }
 
     status.innerText =
-      "Nhập ít nhất 2 ký tự.";
+      "Đang tìm...";
 
-    return;
+    searchTimer =
+      setTimeout(
+        () => {
+
+          searchDevices(keyword);
+
+        },
+        400
+      );
+
   }
+);
 
-  status.innerText =
-    "Đang tìm...";
 
-  searchTimer = setTimeout(() => {
-
-    searchDevices(keyword);
-
-  }, 400);
-
-});
-
+/* =========================================
+   GỌI API TÌM THIẾT BỊ
+========================================= */
 
 async function searchDevices(keyword) {
 
@@ -88,19 +128,23 @@ async function searchDevices(keyword) {
       await fetch(url);
 
     if (!response.ok) {
+
       throw new Error(
         "Lỗi tìm thiết bị: " +
         response.status
       );
+
     }
 
     const devices =
       await response.json();
 
     if (!Array.isArray(devices)) {
+
       throw new Error(
         "Dữ liệu thiết bị không đúng định dạng."
       );
+
     }
 
     renderDevices(devices);
@@ -141,125 +185,158 @@ function renderDevices(devices) {
       "<div>Không tìm thấy thiết bị.</div>";
 
     return;
+
   }
 
-  devices.forEach(device => {
+  devices.forEach(
+    device => {
 
-    const row =
-      document.createElement("div");
+      const row =
+        document.createElement("div");
 
-    row.className =
-      "device";
+      row.className =
+        "device";
 
-    const checkbox =
-      document.createElement("input");
 
-    checkbox.type =
-      "checkbox";
+      /* CHECKBOX */
 
-    checkbox.checked =
-      selectedDevices.has(
-        device.code
+      const checkbox =
+        document.createElement("input");
+
+      checkbox.type =
+        "checkbox";
+
+      checkbox.checked =
+        selectedDevices.has(
+          device.code
+        );
+
+      checkbox.addEventListener(
+        "change",
+        () => {
+
+          toggleDevice(
+            device,
+            checkbox.checked
+          );
+
+        }
       );
 
-    checkbox.addEventListener(
-      "change",
-      () => {
 
-        toggleDevice(
-          device,
-          checkbox.checked
+      /* WRAPPER */
+
+      const infoWrapper =
+        document.createElement("div");
+
+
+      /* MÃ THIẾT BỊ */
+
+      const codeDiv =
+        document.createElement("div");
+
+      codeDiv.className =
+        "device-code";
+
+      codeDiv.innerText =
+        device.code || "";
+
+
+      /* THÔNG TIN THIẾT BỊ */
+
+      const infoDiv =
+        document.createElement("div");
+
+      infoDiv.className =
+        "device-info";
+
+
+      const sensorType =
+        device.sensor_type || "";
+
+      const mux =
+        cleanValue(device.mux);
+
+      const channel =
+        cleanValue(device.channel);
+
+      const elevation =
+        cleanValue(device.elevation);
+
+
+      const detailParts = [];
+
+
+      if (sensorType) {
+
+        detailParts.push(
+          sensorType
         );
 
       }
-    );
 
-    const infoWrapper =
-      document.createElement("div");
 
-    const codeDiv =
-      document.createElement("div");
+      if (mux) {
 
-    codeDiv.className =
-      "device-code";
+        detailParts.push(
+          mux
+        );
 
-    codeDiv.innerText =
-      device.code || "";
+      }
 
-    const infoDiv =
-      document.createElement("div");
 
-    infoDiv.className =
-      "device-info";
+      if (channel) {
 
-    const sensorType =
-      device.sensor_type || "";
+        detailParts.push(
+          "CH " + channel
+        );
 
-    const mux =
-      cleanValue(device.mux);
+      }
 
-    const channel =
-      cleanValue(device.channel);
 
-    const elevation =
-      cleanValue(device.elevation);
+      if (elevation) {
 
-    let detailParts = [];
+        detailParts.push(
+          "EL." + elevation
+        );
 
-    if (sensorType) {
-      detailParts.push(
-        sensorType
+      }
+
+
+      infoDiv.innerText =
+        detailParts.join(" • ");
+
+
+      infoWrapper.appendChild(
+        codeDiv
       );
-    }
 
-    if (mux) {
-      detailParts.push(
-        mux
+      infoWrapper.appendChild(
+        infoDiv
       );
-    }
 
-    if (channel) {
-      detailParts.push(
-        "CH " + channel
+
+      row.appendChild(
+        checkbox
       );
-    }
 
-    if (elevation) {
-      detailParts.push(
-        "EL." + elevation
+      row.appendChild(
+        infoWrapper
       );
+
+
+      results.appendChild(
+        row
+      );
+
     }
-
-    infoDiv.innerText =
-      detailParts.join(" • ");
-
-    infoWrapper.appendChild(
-      codeDiv
-    );
-
-    infoWrapper.appendChild(
-      infoDiv
-    );
-
-    row.appendChild(
-      checkbox
-    );
-
-    row.appendChild(
-      infoWrapper
-    );
-
-    results.appendChild(
-      row
-    );
-
-  });
+  );
 
 }
 
 
 /* =========================================
-   LÀM SẠCH GIÁ TRỊ HIỂN THỊ
+   LÀM SẠCH GIÁ TRỊ
 ========================================= */
 
 function cleanValue(value) {
@@ -268,22 +345,30 @@ function cleanValue(value) {
     value === null ||
     value === undefined
   ) {
+
     return "";
+
   }
+
 
   const text =
     String(value)
       .replace(/\u00A0/g, " ")
       .trim();
 
+
   if (
     text === "" ||
     text === "0"
   ) {
+
     return "";
+
   }
 
+
   return text;
+
 }
 
 
@@ -313,13 +398,14 @@ function toggleDevice(
 
   }
 
+
   renderSelectedDevices();
 
 }
 
 
 /* =========================================
-   HIỂN THỊ DANH SÁCH ĐÃ CHỌN
+   HIỂN THỊ THIẾT BỊ ĐÃ CHỌN
 ========================================= */
 
 function renderSelectedDevices() {
@@ -327,7 +413,9 @@ function renderSelectedDevices() {
   selectedCount.innerText =
     selectedDevices.size;
 
+
   selectedList.innerHTML = "";
+
 
   selectedDevices.forEach(
     device => {
@@ -341,6 +429,7 @@ function renderSelectedDevices() {
       item.innerText =
         "✓ " + device.code;
 
+
       selectedList.appendChild(
         item
       );
@@ -352,7 +441,7 @@ function renderSelectedDevices() {
 
 
 /* =========================================
-   KHÓA / MỞ NÚT TẠO CÔNG VIỆC
+   TRẠNG THÁI NÚT TẠO CÔNG VIỆC
 ========================================= */
 
 function setCreatingState(
@@ -361,6 +450,7 @@ function setCreatingState(
 
   createJobBtn.disabled =
     creating;
+
 
   if (creating) {
 
@@ -390,6 +480,9 @@ createJobBtn.addEventListener(
     const content =
       requestContent.value.trim();
 
+
+    /* KIỂM TRA NỘI DUNG */
+
     if (!content) {
 
       alert(
@@ -397,7 +490,11 @@ createJobBtn.addEventListener(
       );
 
       return;
+
     }
+
+
+    /* KIỂM TRA THIẾT BỊ */
 
     if (
       selectedDevices.size === 0
@@ -408,35 +505,78 @@ createJobBtn.addEventListener(
       );
 
       return;
+
     }
+
+
+    /* DANH SÁCH THIẾT BỊ */
 
     const devices =
       Array.from(
         selectedDevices.values()
       );
 
-    const telegramUser =
-  tg.initDataUnsafe?.user || null;
 
-console.log("Telegram initData:", tg.initData);
-console.log("Telegram initDataUnsafe:", tg.initDataUnsafe);
-console.log("Telegram User:", telegramUser);
+    /* =====================================
+       LẤY THÔNG TIN TELEGRAM
+    ===================================== */
+
+    const telegramUser =
+      tg.initDataUnsafe?.user ||
+      null;
+
+    const telegramInitData =
+      tg.initData ||
+      "";
+
+    const telegramInitDataUnsafe =
+      tg.initDataUnsafe ||
+      {};
+
+
+    console.log(
+      "Telegram User:",
+      telegramUser
+    );
+
+    console.log(
+      "Telegram InitData:",
+      telegramInitData
+    );
+
+    console.log(
+      "Telegram InitDataUnsafe:",
+      telegramInitDataUnsafe
+    );
+
+
+    /* THỜI GIAN */
 
     const createdAt =
       new Date().toISOString();
 
+
+    /* =====================================
+       TẠO FORM DATA
+    ===================================== */
+
     const formData =
       new URLSearchParams();
+
 
     formData.append(
       "request",
       content
     );
 
+
     formData.append(
       "devices",
       JSON.stringify(devices)
     );
+
+
+    /* USER TELEGRAM */
 
     formData.append(
       "telegram_user",
@@ -445,10 +585,34 @@ console.log("Telegram User:", telegramUser);
       )
     );
 
+
+    /* INIT DATA GỐC */
+
+    formData.append(
+      "telegram_init_data",
+      telegramInitData
+    );
+
+
+    /* INIT DATA ĐÃ PARSE */
+
+    formData.append(
+      "telegram_init_data_unsafe",
+      JSON.stringify(
+        telegramInitDataUnsafe
+      )
+    );
+
+
+    /* THỜI GIAN */
+
     formData.append(
       "created_at",
       createdAt
     );
+
+
+    /* SỐ THIẾT BỊ */
 
     formData.append(
       "device_count",
@@ -457,9 +621,15 @@ console.log("Telegram User:", telegramUser);
       )
     );
 
+
+    /* =====================================
+       GỬI SANG N8N
+    ===================================== */
+
     try {
 
       setCreatingState(true);
+
 
       const response =
         await fetch(
@@ -470,10 +640,12 @@ console.log("Telegram User:", telegramUser);
           }
         );
 
+
       if (!response.ok) {
 
         const errorText =
           await response.text();
+
 
         throw new Error(
           "HTTP " +
@@ -484,7 +656,13 @@ console.log("Telegram User:", telegramUser);
 
       }
 
+
+      /* ===================================
+         ĐỌC RESPONSE
+      =================================== */
+
       let responseData = null;
+
 
       try {
 
@@ -499,10 +677,16 @@ console.log("Telegram User:", telegramUser);
 
       }
 
+
       console.log(
         "Create job response:",
         responseData
       );
+
+
+      /* ===================================
+         THÔNG BÁO
+      =================================== */
 
       alert(
         "Đã gửi yêu cầu kiểm tra " +
@@ -510,19 +694,23 @@ console.log("Telegram User:", telegramUser);
         " thiết bị."
       );
 
-      /*
-        Tạm thời đóng Mini App
-        sau khi gửi thành công.
-        Sau này có thể đổi thành
-        hiển thị Job ID trước khi đóng.
-      */
 
-      if (
-        window.Telegram &&
-        window.Telegram.WebApp
-      ) {
+      /* ===================================
+         ĐÓNG MINI APP
+      =================================== */
+
+      try {
 
         tg.close();
+
+      }
+
+      catch (error) {
+
+        console.log(
+          "Không thể đóng Mini App:",
+          error
+        );
 
       }
 
@@ -534,6 +722,7 @@ console.log("Telegram User:", telegramUser);
         "Create job error:",
         error
       );
+
 
       alert(
         "Có lỗi khi tạo công việc.\n" +
