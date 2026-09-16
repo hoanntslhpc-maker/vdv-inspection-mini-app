@@ -416,8 +416,11 @@ createJobBtn.addEventListener(
       );
 
     const telegramUser =
-      tg.initDataUnsafe?.user ||
-      null;
+  tg.initDataUnsafe?.user || null;
+
+console.log("Telegram initData:", tg.initData);
+console.log("Telegram initDataUnsafe:", tg.initDataUnsafe);
+console.log("Telegram User:", telegramUser);
 
     const createdAt =
       new Date().toISOString();
