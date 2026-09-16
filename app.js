@@ -18,25 +18,81 @@ const CREATE_JOB_URL =
 try {
   tg.ready();
   tg.expand();
-
-  console.log("=== TELEGRAM DEBUG ===");
-  console.log("initData:", tg.initData);
-  console.log("initDataUnsafe:", tg.initDataUnsafe);
-  console.log("user:", tg.initDataUnsafe?.user);
-  console.log("======================");
-
 } catch (error) {
-
-  console.error(
-    "Telegram WebApp init error:",
-    error
-  );
-
+  console.log("Telegram WebApp init:", error);
 }
 
 
 /* =========================================
-   DOM
+   LẤY THÔNG TIN NGƯỜI DÙNG
+
+   Ưu tiên:
+   1. Telegram Mini App
+   2. user_id + user_name từ URL
+========================================= */
+
+const urlParams =
+  new URLSearchParams(window.location.search);
+
+const urlUserId =
+  urlParams.get("user_id");
+
+const urlUserName =
+  urlParams.get("user_name");
+
+let telegramUser = null;
+
+
+/* Nếu Telegram cung cấp user */
+if (tg.initDataUnsafe?.user) {
+
+  telegramUser =
+    tg.initDataUnsafe.user;
+
+}
+
+
+/* Nếu Telegram không cung cấp user
+   thì lấy từ URL */
+else if (urlUserId) {
+
+  telegramUser = {
+    id: urlUserId,
+    first_name:
+      urlUserName || "Không xác định"
+  };
+
+}
+
+
+console.log(
+  "Telegram initData:",
+  tg.initData
+);
+
+console.log(
+  "Telegram initDataUnsafe:",
+  tg.initDataUnsafe
+);
+
+console.log(
+  "URL user_id:",
+  urlUserId
+);
+
+console.log(
+  "URL user_name:",
+  urlUserName
+);
+
+console.log(
+  "Final telegramUser:",
+  telegramUser
+);
+
+
+/* =========================================
+   DOM ELEMENTS
 ========================================= */
 
 const searchInput =
@@ -62,7 +118,7 @@ const createJobBtn =
 
 
 /* =========================================
-   BIẾN
+   BIẾN LƯU THIẾT BỊ ĐÃ CHỌN
 ========================================= */
 
 const selectedDevices =
@@ -100,9 +156,7 @@ searchInput.addEventListener(
     searchTimer =
       setTimeout(
         () => {
-
           searchDevices(keyword);
-
         },
         400
       );
@@ -185,152 +239,147 @@ function renderDevices(devices) {
       "<div>Không tìm thấy thiết bị.</div>";
 
     return;
-
   }
 
-  devices.forEach(
-    device => {
+  devices.forEach(device => {
 
-      const row =
-        document.createElement("div");
+    const row =
+      document.createElement("div");
 
-      row.className =
-        "device";
+    row.className =
+      "device";
 
 
-      /* CHECKBOX */
+    /* CHECKBOX */
 
-      const checkbox =
-        document.createElement("input");
+    const checkbox =
+      document.createElement("input");
 
-      checkbox.type =
-        "checkbox";
+    checkbox.type =
+      "checkbox";
 
-      checkbox.checked =
-        selectedDevices.has(
-          device.code
-        );
-
-      checkbox.addEventListener(
-        "change",
-        () => {
-
-          toggleDevice(
-            device,
-            checkbox.checked
-          );
-
-        }
+    checkbox.checked =
+      selectedDevices.has(
+        device.code
       );
 
+    checkbox.addEventListener(
+      "change",
+      () => {
 
-      /* WRAPPER */
-
-      const infoWrapper =
-        document.createElement("div");
-
-
-      /* MÃ THIẾT BỊ */
-
-      const codeDiv =
-        document.createElement("div");
-
-      codeDiv.className =
-        "device-code";
-
-      codeDiv.innerText =
-        device.code || "";
-
-
-      /* THÔNG TIN THIẾT BỊ */
-
-      const infoDiv =
-        document.createElement("div");
-
-      infoDiv.className =
-        "device-info";
-
-
-      const sensorType =
-        device.sensor_type || "";
-
-      const mux =
-        cleanValue(device.mux);
-
-      const channel =
-        cleanValue(device.channel);
-
-      const elevation =
-        cleanValue(device.elevation);
-
-
-      const detailParts = [];
-
-
-      if (sensorType) {
-
-        detailParts.push(
-          sensorType
+        toggleDevice(
+          device,
+          checkbox.checked
         );
 
       }
+    );
 
 
-      if (mux) {
+    /* KHỐI THÔNG TIN */
 
-        detailParts.push(
-          mux
-        );
-
-      }
+    const infoWrapper =
+      document.createElement("div");
 
 
-      if (channel) {
+    /* MÃ THIẾT BỊ */
 
-        detailParts.push(
-          "CH " + channel
-        );
+    const codeDiv =
+      document.createElement("div");
 
-      }
+    codeDiv.className =
+      "device-code";
 
-
-      if (elevation) {
-
-        detailParts.push(
-          "EL." + elevation
-        );
-
-      }
+    codeDiv.innerText =
+      device.code || "";
 
 
-      infoDiv.innerText =
-        detailParts.join(" • ");
+    /* THÔNG TIN CHI TIẾT */
+
+    const infoDiv =
+      document.createElement("div");
+
+    infoDiv.className =
+      "device-info";
+
+    const sensorType =
+      device.sensor_type || "";
+
+    const mux =
+      cleanValue(device.mux);
+
+    const channel =
+      cleanValue(device.channel);
+
+    const elevation =
+      cleanValue(device.elevation);
+
+    let detailParts = [];
 
 
-      infoWrapper.appendChild(
-        codeDiv
-      );
+    if (sensorType) {
 
-      infoWrapper.appendChild(
-        infoDiv
-      );
-
-
-      row.appendChild(
-        checkbox
-      );
-
-      row.appendChild(
-        infoWrapper
-      );
-
-
-      results.appendChild(
-        row
+      detailParts.push(
+        sensorType
       );
 
     }
-  );
+
+
+    if (mux) {
+
+      detailParts.push(
+        mux
+      );
+
+    }
+
+
+    if (channel) {
+
+      detailParts.push(
+        "CH " + channel
+      );
+
+    }
+
+
+    if (elevation) {
+
+      detailParts.push(
+        "EL." + elevation
+      );
+
+    }
+
+
+    infoDiv.innerText =
+      detailParts.join(" • ");
+
+
+    infoWrapper.appendChild(
+      codeDiv
+    );
+
+    infoWrapper.appendChild(
+      infoDiv
+    );
+
+
+    row.appendChild(
+      checkbox
+    );
+
+    row.appendChild(
+      infoWrapper
+    );
+
+
+    results.appendChild(
+      row
+    );
+
+  });
 
 }
 
@@ -349,7 +398,6 @@ function cleanValue(value) {
     return "";
 
   }
-
 
   const text =
     String(value)
@@ -413,7 +461,6 @@ function renderSelectedDevices() {
   selectedCount.innerText =
     selectedDevices.size;
 
-
   selectedList.innerHTML = "";
 
 
@@ -429,7 +476,6 @@ function renderSelectedDevices() {
       item.innerText =
         "✓ " + device.code;
 
-
       selectedList.appendChild(
         item
       );
@@ -441,7 +487,7 @@ function renderSelectedDevices() {
 
 
 /* =========================================
-   TRẠNG THÁI NÚT TẠO CÔNG VIỆC
+   KHÓA / MỞ NÚT TẠO CÔNG VIỆC
 ========================================= */
 
 function setCreatingState(
@@ -509,55 +555,18 @@ createJobBtn.addEventListener(
     }
 
 
-    /* DANH SÁCH THIẾT BỊ */
-
     const devices =
       Array.from(
         selectedDevices.values()
       );
 
 
-    /* =====================================
-       LẤY THÔNG TIN TELEGRAM
-    ===================================== */
-
-    const telegramUser =
-      tg.initDataUnsafe?.user ||
-      null;
-
-    const telegramInitData =
-      tg.initData ||
-      "";
-
-    const telegramInitDataUnsafe =
-      tg.initDataUnsafe ||
-      {};
-
-
-    console.log(
-      "Telegram User:",
-      telegramUser
-    );
-
-    console.log(
-      "Telegram InitData:",
-      telegramInitData
-    );
-
-    console.log(
-      "Telegram InitDataUnsafe:",
-      telegramInitDataUnsafe
-    );
-
-
-    /* THỜI GIAN */
-
     const createdAt =
       new Date().toISOString();
 
 
     /* =====================================
-       TẠO FORM DATA
+       CHUẨN BỊ DỮ LIỆU GỬI N8N
     ===================================== */
 
     const formData =
@@ -576,8 +585,6 @@ createJobBtn.addEventListener(
     );
 
 
-    /* USER TELEGRAM */
-
     formData.append(
       "telegram_user",
       JSON.stringify(
@@ -586,33 +593,39 @@ createJobBtn.addEventListener(
     );
 
 
-    /* INIT DATA GỐC */
+    /* Gửi riêng để debug / sử dụng sau này */
 
     formData.append(
-      "telegram_init_data",
-      telegramInitData
+      "telegram_user_id",
+      telegramUser?.id || ""
     );
 
 
-    /* INIT DATA ĐÃ PARSE */
+    formData.append(
+      "telegram_user_name",
+      telegramUser?.first_name || ""
+    );
+
+
+    formData.append(
+      "telegram_init_data",
+      tg.initData || ""
+    );
+
 
     formData.append(
       "telegram_init_data_unsafe",
       JSON.stringify(
-        telegramInitDataUnsafe
+        tg.initDataUnsafe || {}
       )
     );
 
-
-    /* THỜI GIAN */
 
     formData.append(
       "created_at",
       createdAt
     );
 
-
-    /* SỐ THIẾT BỊ */
 
     formData.append(
       "device_count",
@@ -623,7 +636,41 @@ createJobBtn.addEventListener(
 
 
     /* =====================================
-       GỬI SANG N8N
+       DEBUG
+    ===================================== */
+
+    console.log(
+      "===== CREATE JOB ====="
+    );
+
+    console.log(
+      "Request:",
+      content
+    );
+
+    console.log(
+      "Devices:",
+      devices
+    );
+
+    console.log(
+      "Telegram User:",
+      telegramUser
+    );
+
+    console.log(
+      "URL User ID:",
+      urlUserId
+    );
+
+    console.log(
+      "URL User Name:",
+      urlUserName
+    );
+
+
+    /* =====================================
+       GỬI WEBHOOK
     ===================================== */
 
     try {
@@ -645,7 +692,6 @@ createJobBtn.addEventListener(
 
         const errorText =
           await response.text();
-
 
         throw new Error(
           "HTTP " +
@@ -685,7 +731,7 @@ createJobBtn.addEventListener(
 
 
       /* ===================================
-         THÔNG BÁO
+         THÔNG BÁO THÀNH CÔNG
       =================================== */
 
       alert(
@@ -699,22 +745,17 @@ createJobBtn.addEventListener(
          ĐÓNG MINI APP
       =================================== */
 
-      try {
+      if (
+        window.Telegram &&
+        window.Telegram.WebApp
+      ) {
 
         tg.close();
 
       }
 
-      catch (error) {
-
-        console.log(
-          "Không thể đóng Mini App:",
-          error
-        );
-
-      }
-
     }
+
 
     catch (error) {
 
@@ -730,6 +771,7 @@ createJobBtn.addEventListener(
       );
 
     }
+
 
     finally {
 
