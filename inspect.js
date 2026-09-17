@@ -3645,44 +3645,103 @@ function collectResults() {
 
 
     if (
-      type ===
-      "multi_number_result"
-    ) {
+  type ===
+  "multi_number_result"
+) {
 
-      const units =
-        String(
-          step.unit ||
-          ""
-        )
-          .split(",")
-          .map(
-            value =>
-              value.trim()
-          )
-          .filter(Boolean);
-
-
-      const values = {};
+  const units =
+    String(
+      step.unit || ""
+    )
+      .split(",")
+      .map(
+        value =>
+          value.trim()
+      )
+      .filter(Boolean);
 
 
-      units.forEach(
-        (unit, index) => {
-
-          const input =
-            document.getElementById(
-              `multi-${order}-${index}`
-            );
+  const values = {};
 
 
-          values[unit] =
-            input
-              ? input.value.trim()
-              : "";
+  units.forEach(
+    (unit, index) => {
 
-        }
+      const input =
+        document.getElementById(
+          `multi-${order}-${index}`
+        );
+
+
+      values[unit] =
+        input
+          ? input.value.trim()
+          : "";
+
+    }
+  );
+
+
+  /*
+    DPL_420MA - BƯỚC 3
+    Lưu thêm dữ liệu phục vụ biên bản
+  */
+
+  if (
+    String(
+      step.procedure_code || ""
+    )
+      .trim()
+      .toUpperCase()
+    === "DPL_420MA"
+
+    &&
+
+    Number(order) === 3
+  ) {
+
+    const {
+      axis,
+      factor
+    } =
+      getDplAxisAndFactor();
+
+
+    const convertedInput =
+      document.getElementById(
+        `converted-mm-${order}`
       );
 
 
+    const displayInput =
+      document.getElementById(
+        `display-mm-${order}`
+      );
+
+
+    values.axis =
+      axis || "";
+
+
+    values.factor =
+      factor ?? "";
+
+
+    values.converted_mm =
+      convertedInput
+        ? convertedInput.value.trim()
+        : "";
+
+
+    values.display_mm =
+      displayInput
+        ? displayInput.value.trim()
+        : "";
+
+  }
+
+
+  
       value =
         values;
 
