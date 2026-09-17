@@ -2587,10 +2587,9 @@ function updateDplConvertedValue(
 
   const convertedValue =
 
-    maValue
-    *
-    factor;
-
+  (maValue - 4)
+  *
+  factor;
 
   /*
     Hiển thị tối đa 4 chữ số
