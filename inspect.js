@@ -1661,7 +1661,6 @@ function createProcedureStep(
 /* =========================================================
    19. RENDER INPUT
 ========================================================= */
-
 function renderInput(
   container,
   step
@@ -1688,7 +1687,9 @@ function renderInput(
     );
 
 
-  /* SELECT */
+  /* =====================================================
+     SELECT
+  ===================================================== */
 
   if (
     type === "select"
@@ -1706,9 +1707,7 @@ function renderInput(
 
           ${
             type === "final_assessment"
-
               ? "Đánh giá tình trạng"
-
               : "Kết quả kiểm tra"
           }
 
@@ -1747,12 +1746,15 @@ function renderInput(
 
     `;
 
+
     return;
 
   }
 
 
-  /* NUMBER */
+  /* =====================================================
+     NUMBER
+  ===================================================== */
 
   if (
     type ===
@@ -1780,15 +1782,15 @@ function renderInput(
 
               ? `
 
-                <div class="unit-box">
+                  <div class="unit-box">
 
-                  ${escapeHtml(
-                    step.unit
-                  )}
+                    ${escapeHtml(
+                      step.unit
+                    )}
 
-                </div>
+                  </div>
 
-              `
+                `
 
               : ""
           }
@@ -1803,55 +1805,58 @@ function renderInput(
 
           ? `
 
-            <div class="form-group">
+              <div class="form-group">
 
-              <label class="form-label">
-                Đánh giá
-              </label>
+                <label class="form-label">
+                  Đánh giá
+                </label>
 
-              <select
-                id="assessment-${order}"
-              >
+                <select
+                  id="assessment-${order}"
+                >
 
-                <option value="">
-                  -- Chọn đánh giá --
-                </option>
+                  <option value="">
+                    -- Chọn đánh giá --
+                  </option>
 
-                ${
-                  options
-                    .map(
-                      option => `
+                  ${
+                    options
+                      .map(
+                        option => `
 
-                        <option
-                          value="${escapeHtml(option)}"
-                        >
+                          <option
+                            value="${escapeHtml(option)}"
+                          >
 
-                          ${escapeHtml(option)}
+                            ${escapeHtml(option)}
 
-                        </option>
+                          </option>
 
-                      `
-                    )
-                    .join("")
-                }
+                        `
+                      )
+                      .join("")
+                  }
 
-              </select>
+                </select>
 
-            </div>
+              </div>
 
-          `
+            `
 
           : ""
       }
 
     `;
 
+
     return;
 
   }
 
 
-  /* MULTI NUMBER */
+  /* =====================================================
+     MULTI NUMBER
+  ===================================================== */
 
   if (
     type ===
@@ -1870,32 +1875,162 @@ function renderInput(
         .filter(Boolean);
 
 
-    container.innerHTML =
+    /*
+      Xác định riêng BƯỚC 3
+      của quy trình DPL_420MA
+    */
+
+    const isDplStep3 =
+
+      String(
+        step.procedure_code || ""
+      )
+        .trim()
+        .toUpperCase()
+
+      === "DPL_420MA"
+
+      &&
+
+      order === 3;
+
+
+    /*
+      Tạo các ô theo unit trong Google Sheet.
+
+      Với DPL_420MA:
+      mA -> Giá trị dòng điện
+      V  -> Giá trị điện áp
+    */
+
+    const measurementHtml =
+
       units
         .map(
-          (unit, index) => `
+          (unit, index) => {
+
+            let label =
+              `Giá trị ${unit}`;
+
+
+            if (
+              isDplStep3
+              &&
+              unit.toLowerCase() === "ma"
+            ) {
+
+              label =
+                "Giá trị dòng điện";
+
+            }
+
+
+            if (
+              isDplStep3
+              &&
+              unit.toLowerCase() === "v"
+            ) {
+
+              label =
+                "Giá trị điện áp";
+
+            }
+
+
+            return `
+
+              <div class="form-group">
+
+                <label class="form-label">
+
+                  ${escapeHtml(label)}
+
+                </label>
+
+
+                <div class="number-row">
+
+                  <input
+                    type="number"
+                    step="any"
+                    id="multi-${order}-${index}"
+                  >
+
+
+                  <div class="unit-box">
+
+                    ${escapeHtml(unit)}
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            `;
+
+          }
+        )
+        .join("");
+
+
+    /*
+      Hai trường bổ sung riêng cho DPL:
+      1. Giá trị quy đổi tự động
+      2. Giá trị hiển thị trên thiết bị
+    */
+
+    const dplExtraHtml =
+
+      isDplStep3
+
+        ? `
 
             <div class="form-group">
 
               <label class="form-label">
-
-                Giá trị
-                ${escapeHtml(unit)}
-
+                Giá trị quy đổi
               </label>
+
 
               <div class="number-row">
 
                 <input
                   type="number"
                   step="any"
-                  id="multi-${order}-${index}"
+                  id="converted-mm-${order}"
+                  readonly
+                  placeholder="Tự động tính"
                 >
 
+
                 <div class="unit-box">
+                  mm
+                </div>
 
-                  ${escapeHtml(unit)}
+              </div>
 
+            </div>
+
+
+            <div class="form-group">
+
+              <label class="form-label">
+                Giá trị hiển thị trên thiết bị
+              </label>
+
+
+              <div class="number-row">
+
+                <input
+                  type="number"
+                  step="any"
+                  id="display-mm-${order}"
+                >
+
+
+                <div class="unit-box">
+                  mm
                 </div>
 
               </div>
@@ -1903,55 +2038,166 @@ function renderInput(
             </div>
 
           `
-        )
-        .join("")
+
+        : "";
+
+
+    /*
+      Đánh giá vẫn do người kiểm tra lựa chọn.
+      KHÔNG tự động kết luận.
+    */
+
+    const assessmentHtml = `
+
+      <div class="form-group">
+
+        <label class="form-label">
+          Đánh giá
+        </label>
+
+
+        <select
+          id="assessment-${order}"
+        >
+
+          <option value="">
+            -- Chọn đánh giá --
+          </option>
+
+
+          ${
+            options
+              .map(
+                option => `
+
+                  <option
+                    value="${escapeHtml(option)}"
+                  >
+
+                    ${escapeHtml(option)}
+
+                  </option>
+
+                `
+              )
+              .join("")
+          }
+
+        </select>
+
+      </div>
+
+    `;
+
+
+    container.innerHTML =
+
+      measurementHtml
       +
-      `
+      dplExtraHtml
+      +
+      assessmentHtml;
 
-        <div class="form-group">
 
-          <label class="form-label">
-            Đánh giá
-          </label>
+    /*
+      Chỉ gắn xử lý tự động cho
+      DPL_420MA - Bước 3
+    */
 
-          <select
-            id="assessment-${order}"
-          >
+    if (
+      isDplStep3
+    ) {
 
-            <option value="">
-              -- Chọn đánh giá --
-            </option>
+      /*
+        Tìm vị trí unit mA.
+        Không mặc định mA luôn là index 0
+        để tránh phụ thuộc thứ tự Google Sheet.
+      */
 
-            ${
-              options
-                .map(
-                  option => `
+      const maIndex =
 
-                    <option
-                      value="${escapeHtml(option)}"
-                    >
+        units.findIndex(
+          unit =>
+            unit
+              .toLowerCase()
+            ===
+            "ma"
+        );
 
-                      ${escapeHtml(option)}
 
-                    </option>
+      const maInput =
 
-                  `
-                )
-                .join("")
-            }
+        maIndex >= 0
 
-          </select>
+          ? document.getElementById(
+              `multi-${order}-${maIndex}`
+            )
 
-        </div>
+          : null;
 
-      `;
+
+      /*
+        Khi thay đổi mA:
+        tự động tính lại mm.
+      */
+
+      if (
+        maInput
+      ) {
+
+        maInput.addEventListener(
+          "input",
+          () => {
+
+            updateDplConvertedValue(
+              order
+            );
+
+          }
+        );
+
+      }
+
+
+      /*
+        Khi người kiểm tra thay đổi
+        Đạt / Không đạt:
+        cập nhật việc hiển thị Bước 4.
+      */
+
+      const assessmentInput =
+
+        document.getElementById(
+          `assessment-${order}`
+        );
+
+
+      if (
+        assessmentInput
+      ) {
+
+        assessmentInput.addEventListener(
+          "change",
+          () => {
+
+            updateDplStep4Visibility();
+
+          }
+        );
+
+      }
+
+    }
+
 
     return;
 
   }
 
 
-  /* MULTI NODE */
+  /* =====================================================
+     MULTI NODE
+  ===================================================== */
 
   if (
     type ===
@@ -1963,6 +2209,7 @@ function renderInput(
       <div
         id="nodes-${order}"
       ></div>
+
 
       <button
         type="button"
@@ -1981,12 +2228,15 @@ function renderInput(
       order
     );
 
+
     return;
 
   }
 
 
-  /* DEFAULT */
+  /* =====================================================
+     DEFAULT
+  ===================================================== */
 
   container.innerHTML = `
 
@@ -1995,6 +2245,7 @@ function renderInput(
       <label class="form-label">
         Kết quả
       </label>
+
 
       <input
         type="text"
@@ -2006,9 +2257,356 @@ function renderInput(
   `;
 
 }
+/* =========================================================
+   DPL 4-20mA - TÍNH GIÁ TRỊ QUY ĐỔI
+========================================================= */
 
 
+/*
+  Kiểm tra có phải Bước 3
+  của quy trình DPL_420MA hay không.
+*/
 
+function isDpl420Step3(
+  step
+) {
+
+  return (
+
+    String(
+      step?.procedure_code || ""
+    )
+      .trim()
+      .toUpperCase()
+
+    ===
+    "DPL_420MA"
+
+    &&
+
+    Number(
+      step?.step_order
+    )
+    ===
+    3
+
+  );
+
+}
+
+
+/*
+  Xác định phương đo từ mã thiết bị.
+
+  Ví dụ:
+
+  DPL2GA/X
+  => phương X
+  => hệ số 3.125
+
+  DPL2GA/Y
+  => phương Y
+  => hệ số 6.25
+*/
+
+function getDplAxisAndFactor() {
+
+  const deviceCode =
+
+    String(
+      selectedDevice?.code || ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  /*
+    PHƯƠNG X
+  */
+
+  if (
+    deviceCode.endsWith("/X")
+  ) {
+
+    return {
+
+      axis:
+        "X",
+
+      factor:
+        3.125
+
+    };
+
+  }
+
+
+  /*
+    PHƯƠNG Y
+  */
+
+  if (
+    deviceCode.endsWith("/Y")
+  ) {
+
+    return {
+
+      axis:
+        "Y",
+
+      factor:
+        6.25
+
+    };
+
+  }
+
+
+  /*
+    Không xác định được phương.
+  */
+
+  return {
+
+    axis:
+      "",
+
+    factor:
+      null
+
+  };
+
+}
+
+
+/*
+  Tính giá trị quy đổi.
+
+  Công thức hiện dùng:
+
+  Phương X:
+  mm = mA × 3.125
+
+  Phương Y:
+  mm = mA × 6.25
+*/
+
+function updateDplConvertedValue(
+  order = 3
+) {
+
+  /*
+    Tìm cấu hình của bước hiện tại.
+  */
+
+  const step =
+
+    currentProcedure.find(
+      item =>
+
+        Number(
+          item.step_order
+        )
+
+        ===
+
+        Number(
+          order
+        )
+    );
+
+
+  /*
+    Không phải DPL_420MA - Bước 3
+    thì không xử lý.
+  */
+
+  if (
+    !isDpl420Step3(
+      step
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+    Đọc danh sách đơn vị.
+
+    Hiện tại Google Sheet:
+    mA,V
+  */
+
+  const units =
+
+    String(
+      step.unit || ""
+    )
+      .split(",")
+
+      .map(
+        value =>
+          value.trim()
+      )
+
+      .filter(
+        Boolean
+      );
+
+
+  /*
+    Tìm đúng ô mA.
+  */
+
+  const maIndex =
+
+    units.findIndex(
+      unit =>
+
+        unit
+          .toLowerCase()
+
+        ===
+
+        "ma"
+    );
+
+
+  const maInput =
+
+    maIndex >= 0
+
+      ? document.getElementById(
+          `multi-${order}-${maIndex}`
+        )
+
+      : null;
+
+
+  /*
+    Ô Giá trị quy đổi.
+  */
+
+  const convertedInput =
+
+    document.getElementById(
+      `converted-mm-${order}`
+    );
+
+
+  if (
+    !convertedInput
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+    Nếu chưa nhập mA
+    thì để trống kết quả.
+  */
+
+  if (
+    !maInput
+    ||
+    maInput.value === ""
+  ) {
+
+    convertedInput.value =
+      "";
+
+    return;
+
+  }
+
+
+  /*
+    Chuyển mA sang Number.
+  */
+
+  const maValue =
+
+    Number(
+      maInput.value
+    );
+
+
+  if (
+    !Number.isFinite(
+      maValue
+    )
+  ) {
+
+    convertedInput.value =
+      "";
+
+    return;
+
+  }
+
+
+  /*
+    Xác định X/Y và hệ số.
+  */
+
+  const {
+
+    axis,
+
+    factor
+
+  } =
+    getDplAxisAndFactor();
+
+
+  /*
+    Không xác định được X/Y.
+  */
+
+  if (
+    !axis
+    ||
+    !factor
+  ) {
+
+    convertedInput.value =
+      "";
+
+    return;
+
+  }
+
+
+  /*
+    TÍNH GIÁ TRỊ QUY ĐỔI
+  */
+
+  const convertedValue =
+
+    maValue
+    *
+    factor;
+
+
+  /*
+    Hiển thị tối đa 4 chữ số
+    sau dấu thập phân.
+
+    Number() giúp bỏ các số 0
+    không cần thiết ở cuối.
+  */
+
+  convertedInput.value =
+
+    Number(
+      convertedValue.toFixed(4)
+    );
+
+}
 /* =========================================================
    20. ADD SENSOR NODE
 ========================================================= */
