@@ -2127,13 +2127,13 @@ function renderInput(
 
       const maInput =
 
-        maIndex >= 0
+  maIndex >= 0
 
-          ? document.getElementById(
-              `multi-${order}-${maIndex}`
-            )
+    ? container.querySelector(
+        `#multi-${order}-${maIndex}`
+      )
 
-          : null;
+    : null;
 
 
       /*
