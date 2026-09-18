@@ -3448,33 +3448,53 @@ function prefillSavedInspection(
         );
 
 
+         /*
+        =====================================================
+        HIỂN THỊ ẢNH CŨ CỦA BƯỚC KIỂM TRA
+        =====================================================
+      */
+
       const oldPhotoBox =
-  document.getElementById(
-    `old-photo-${order}`
-  );
+        document.getElementById(
+          `old-photo-${order}`
+        );
 
 
-/*
-  Khi mở kết quả đã lưu để chỉnh sửa,
-  đưa toàn bộ ảnh cũ vào danh sách
-  ảnh hiện vẫn được giữ lại.
-*/
+      /*
+        Lưu danh sách ảnh cũ hiện còn được giữ lại.
 
-remainingOldPhotos[order] =
-  [...urls];
+        Khi mới mở chế độ chỉnh sửa:
+        remainingOldPhotos sẽ chứa toàn bộ
+        URL ảnh đã lưu của bước này.
+      */
+
+      remainingOldPhotos[order] =
+        [...urls];
 
 
-if (
-  oldPhotoBox
-) {
+      /*
+        Hiển thị ảnh cũ.
+      */
 
-  renderOldPhotos(
-    order
+      if (
+        oldPhotoBox
+      ) {
+
+        renderOldPhotos(
+          order
+        );
+
+      }
+
+    }
+
   );
 
 }
+
+
 /* =========================================================
-   HIỂN THỊ ẢNH CŨ KHI CHỈNH SỬA
+   HIỂN THỊ DANH SÁCH ẢNH CŨ
 ========================================================= */
 
 function renderOldPhotos(
@@ -3487,6 +3507,10 @@ function renderOldPhotos(
     );
 
 
+  /*
+    Không tìm thấy vùng hiển thị ảnh.
+  */
+
   if (
     !oldPhotoBox
   ) {
@@ -3496,6 +3520,10 @@ function renderOldPhotos(
   }
 
 
+  /*
+    Danh sách ảnh cũ hiện còn được giữ.
+  */
+
   const urls =
     remainingOldPhotos[order]
     ||
@@ -3503,7 +3531,8 @@ function renderOldPhotos(
 
 
   /*
-    Không còn ảnh cũ.
+    Nếu người dùng đã xóa hết ảnh cũ
+    thì xóa nội dung hiển thị.
   */
 
   if (
@@ -3517,6 +3546,11 @@ function renderOldPhotos(
 
   }
 
+
+  /*
+    Hiển thị danh sách ảnh cũ
+    và nút Xóa cho từng ảnh.
+  */
 
   oldPhotoBox.innerHTML = `
 
@@ -3552,8 +3586,10 @@ function renderOldPhotos(
               <a
                 href="${escapeHtml(url)}"
                 target="_blank"
+                rel="noopener noreferrer"
                 style="
                   flex:1;
+                  min-width:0;
                 "
               >
 
@@ -3566,6 +3602,7 @@ function renderOldPhotos(
                 type="button"
                 onclick="removeOldPhoto(${order}, ${index})"
                 style="
+                  flex:none;
                   border:none;
                   border-radius:6px;
                   padding:6px 10px;
@@ -3600,8 +3637,15 @@ function removeOldPhoto(
   index
 ) {
 
+  /*
+    Nếu bước này chưa có danh sách ảnh cũ
+    thì không làm gì.
+  */
+
   if (
-    !remainingOldPhotos[order]
+    !Array.isArray(
+      remainingOldPhotos[order]
+    )
   ) {
 
     return;
@@ -3609,18 +3653,25 @@ function removeOldPhoto(
   }
 
 
+  /*
+    Xóa đúng URL ảnh mà người dùng chọn.
+  */
+
   remainingOldPhotos[order].splice(
     index,
     1
   );
 
 
+  /*
+    Vẽ lại danh sách ảnh cũ.
+  */
+
   renderOldPhotos(
     order
   );
 
 }
-
 
 
 /* =========================================================
