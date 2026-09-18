@@ -4,12 +4,14 @@ const tg = window.Telegram.WebApp;
    CẤU HÌNH API
 ========================================= */
 
+const API_BASE =
+  "https://hostels-adsl-nyc-baths.trycloudflare.com/webhook";
+
 const SEARCH_API_URL =
-  "https://kiemtrathietbi.app.n8n.cloud/webhook/search-device";
+  `${API_BASE}/search-device`;
 
 const CREATE_JOB_URL =
-  "https://kiemtrathietbi.app.n8n.cloud/webhook/create-inspection";
-
+  `${API_BASE}/create-inspection`;
 
 /* =========================================
    KHỞI TẠO TELEGRAM MINI APP

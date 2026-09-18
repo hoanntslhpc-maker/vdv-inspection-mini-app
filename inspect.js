@@ -9,7 +9,7 @@
 ========================================================= */
 
 const API_BASE =
-  "https://kiemtrathietbi.app.n8n.cloud/webhook";
+  "https://hostels-adsl-nyc-baths.trycloudflare.com/webhook";
 
 const GET_JOB_API =
   `${API_BASE}/get-job`;
