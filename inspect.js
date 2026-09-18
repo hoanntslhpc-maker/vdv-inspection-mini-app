@@ -50,7 +50,13 @@ let savedInspectionRows = [];
 
 let editingExistingInspection = false;
 
-
+/*
+  Lưu danh sách ảnh mới theo từng bước kiểm tra.
+  Ví dụ:
+  selectedPhotos[1] = [file1, file2]
+  selectedPhotos[3] = [file1]
+*/
+const selectedPhotos = {};
 
 /* =========================================================
    3. JOB ID
@@ -3509,6 +3515,75 @@ function previewPhotos(
   order
 ) {
 
+  const input =
+    event.target;
+
+
+  const newFiles =
+    Array.from(
+      input.files || []
+    )
+      .filter(
+        file =>
+          file.type.startsWith(
+            "image/"
+          )
+      );
+
+
+  /*
+    Nếu bước này chưa có danh sách ảnh
+    thì khởi tạo.
+  */
+
+  if (
+    !selectedPhotos[order]
+  ) {
+
+    selectedPhotos[order] =
+      [];
+
+  }
+
+
+  /*
+    Thêm ảnh vừa chọn vào danh sách cũ.
+    Không xóa những ảnh đã chọn trước đó.
+  */
+
+  newFiles.forEach(
+    file => {
+
+      selectedPhotos[order].push(
+        file
+      );
+
+    }
+  );
+
+
+  /*
+    Render lại toàn bộ preview.
+  */
+
+  renderPhotoPreviews(
+    order
+  );
+
+
+  /*
+    Xóa giá trị input để người dùng
+    có thể tiếp tục bấm chọn/chụp ảnh khác.
+  */
+
+  input.value =
+    "";
+
+}
+function renderPhotoPreviews(
+  order
+) {
+
   const preview =
     document.getElementById(
       `preview-${order}`
@@ -3526,61 +3601,194 @@ function previewPhotos(
     "";
 
 
-  Array.from(
-    event.target.files
+  const files =
+    selectedPhotos[order]
     ||
-    []
-  )
-    .forEach(
-      file => {
+    [];
 
 
-        if (
-          !file.type.startsWith(
-            "image/"
-          )
-        ) {
+  files.forEach(
+    (file, index) => {
 
-          return;
-
-        }
+      const reader =
+        new FileReader();
 
 
-        const reader =
-          new FileReader();
+      reader.onload =
+        event => {
 
+          /*
+            Khung chứa một ảnh.
+          */
 
-        reader.onload =
-          event => {
-
-
-            const img =
-              document.createElement(
-                "img"
-              );
-
-
-            img.src =
-              event.target.result;
-
-
-            preview.appendChild(
-              img
+          const item =
+            document.createElement(
+              "div"
             );
 
-          };
+
+          item.style.position =
+            "relative";
+
+          item.style.display =
+            "inline-block";
+
+          item.style.margin =
+            "5px";
 
 
-        reader.readAsDataURL(
-          file
-        );
+          /*
+            Ảnh preview.
+          */
 
-      }
-    );
+          const img =
+            document.createElement(
+              "img"
+            );
+
+
+          img.src =
+            event.target.result;
+
+          img.style.width =
+            "110px";
+
+          img.style.height =
+            "110px";
+
+          img.style.objectFit =
+            "cover";
+
+          img.style.borderRadius =
+            "8px";
+
+
+          /*
+            Nút X xóa ảnh.
+          */
+
+          const deleteButton =
+            document.createElement(
+              "button"
+            );
+
+
+          deleteButton.type =
+            "button";
+
+          deleteButton.innerHTML =
+            "✕";
+
+          deleteButton.title =
+            "Xóa ảnh";
+
+
+          deleteButton.style.position =
+            "absolute";
+
+          deleteButton.style.top =
+            "4px";
+
+          deleteButton.style.right =
+            "4px";
+
+          deleteButton.style.width =
+            "28px";
+
+          deleteButton.style.height =
+            "28px";
+
+          deleteButton.style.border =
+            "none";
+
+          deleteButton.style.borderRadius =
+            "50%";
+
+          deleteButton.style.cursor =
+            "pointer";
+
+          deleteButton.style.fontWeight =
+            "bold";
+
+
+          /*
+            Khi bấm X:
+            xóa đúng ảnh này.
+          */
+
+          deleteButton.addEventListener(
+            "click",
+            () => {
+
+              removeSelectedPhoto(
+                order,
+                index
+              );
+
+            }
+          );
+
+
+          item.appendChild(
+            img
+          );
+
+
+          item.appendChild(
+            deleteButton
+          );
+
+
+          preview.appendChild(
+            item
+          );
+
+        };
+
+
+      reader.readAsDataURL(
+        file
+      );
+
+    }
+  );
 
 }
 
 
+function removeSelectedPhoto(
+  order,
+  index
+) {
+
+  if (
+    !selectedPhotos[order]
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+    Xóa đúng ảnh theo vị trí.
+  */
+
+  selectedPhotos[order].splice(
+    index,
+    1
+  );
+
+
+  /*
+    Vẽ lại preview.
+  */
+
+  renderPhotoPreviews(
+    order
+  );
+
+}
 
 /* =========================================================
    26. GET SAVED ROW
@@ -3857,16 +4065,17 @@ function collectResults() {
       "";
 
 
-    const photoInput =
-      document.getElementById(
-        `photo-${order}`
-      );
+    /*
+  Số ảnh mới hiện còn lại
+  sau khi người dùng thêm/xóa ảnh
+*/
 
-
-    const newPhotoCount =
-      photoInput
-        ? photoInput.files.length
-        : 0;
+const newPhotoCount =
+  (
+    selectedPhotos[order]
+    ||
+    []
+  ).length;
 
 
     const savedRow =
@@ -4263,28 +4472,34 @@ async function saveInspection(event) {
     }
 
 
-    Array.from(
-      input.files
-    )
-      .forEach(
-        (file, index) => {
+   /*
+  Lấy danh sách ảnh đã được người dùng chọn
+  và hiện còn lại sau khi thêm/xóa ảnh.
+*/
+
+const files =
+  selectedPhotos[order]
+  ||
+  [];
 
 
-          formData.append(
+files.forEach(
+  (file, index) => {
 
-            `photo_step_${order}_${index + 1}`,
+    formData.append(
 
-            file,
+      `photo_step_${order}_${index + 1}`,
 
-            file.name
+      file,
 
-          );
+      file.name
 
-        }
-      );
+    );
 
   }
+);
 
+}
 
   const saveButton =
     document.getElementById(
