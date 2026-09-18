@@ -57,6 +57,11 @@ let editingExistingInspection = false;
   selectedPhotos[3] = [file1]
 */
 const selectedPhotos = {};
+/*
+  Danh sách URL ảnh cũ còn được giữ lại
+  khi người dùng chỉnh sửa kết quả.
+*/
+const remainingOldPhotos = {};
 
 /* =========================================================
    3. JOB ID
@@ -3444,62 +3449,174 @@ function prefillSavedInspection(
 
 
       const oldPhotoBox =
-        document.getElementById(
-          `old-photo-${order}`
-        );
+  document.getElementById(
+    `old-photo-${order}`
+  );
 
 
-      if (
-        oldPhotoBox
-        &&
-        urls.length
-      ) {
+/*
+  Khi mở kết quả đã lưu để chỉnh sửa,
+  đưa toàn bộ ảnh cũ vào danh sách
+  ảnh hiện vẫn được giữ lại.
+*/
 
-        oldPhotoBox.innerHTML = `
+remainingOldPhotos[order] =
+  [...urls];
 
-          <div
-            style="
-              color:#15803d;
-              font-weight:700;
-              margin-bottom:6px;
-            "
-          >
 
-            ✅ Ảnh đã lưu:
-            ${urls.length}
+if (
+  oldPhotoBox
+) {
 
-          </div>
+  renderOldPhotos(
+    order
+  );
 
-          ${
+}
+/* =========================================================
+   HIỂN THỊ ẢNH CŨ KHI CHỈNH SỬA
+========================================================= */
 
-            urls
-              .map(
-                (url, index) => `
+function renderOldPhotos(
+  order
+) {
 
-                  <a
-                    href="${escapeHtml(url)}"
-                    target="_blank"
-                    style="
-                      display:block;
-                      margin-bottom:4px;
-                    "
-                  >
+  const oldPhotoBox =
+    document.getElementById(
+      `old-photo-${order}`
+    );
 
-                    📷 Xem ảnh cũ ${index + 1}
 
-                  </a>
+  if (
+    !oldPhotoBox
+  ) {
 
-                `
-              )
-              .join("")
+    return;
 
-          }
+  }
 
-        `;
 
-      }
+  const urls =
+    remainingOldPhotos[order]
+    ||
+    [];
+
+
+  /*
+    Không còn ảnh cũ.
+  */
+
+  if (
+    urls.length === 0
+  ) {
+
+    oldPhotoBox.innerHTML =
+      "";
+
+    return;
+
+  }
+
+
+  oldPhotoBox.innerHTML = `
+
+    <div
+      style="
+        color:#15803d;
+        font-weight:700;
+        margin-bottom:8px;
+      "
+    >
+
+      ✅ Ảnh đã lưu:
+      ${urls.length}
+
+    </div>
+
+
+    ${
+
+      urls
+        .map(
+          (url, index) => `
+
+            <div
+              style="
+                display:flex;
+                align-items:center;
+                gap:8px;
+                margin-bottom:8px;
+              "
+            >
+
+              <a
+                href="${escapeHtml(url)}"
+                target="_blank"
+                style="
+                  flex:1;
+                "
+              >
+
+                📷 Xem ảnh cũ ${index + 1}
+
+              </a>
+
+
+              <button
+                type="button"
+                onclick="removeOldPhoto(${order}, ${index})"
+                style="
+                  border:none;
+                  border-radius:6px;
+                  padding:6px 10px;
+                  cursor:pointer;
+                  font-weight:700;
+                "
+              >
+
+                ✕ Xóa
+
+              </button>
+
+            </div>
+
+          `
+        )
+        .join("")
 
     }
+
+  `;
+
+}
+
+
+/* =========================================================
+   XÓA ẢNH CŨ KHỎI DANH SÁCH GIỮ LẠI
+========================================================= */
+
+function removeOldPhoto(
+  order,
+  index
+) {
+
+  if (
+    !remainingOldPhotos[order]
+  ) {
+
+    return;
+
+  }
+
+
+  remainingOldPhotos[order].splice(
+    index,
+    1
+  );
+
+
+  renderOldPhotos(
+    order
   );
 
 }
@@ -4084,12 +4201,26 @@ const newPhotoCount =
       );
 
 
-    const oldPhotoUrls =
-      savedRow
-        ? parsePhotoUrls(
-            savedRow.photo_urls
-          )
-        : [];
+   /*
+  Khi đang chỉnh sửa:
+  chỉ giữ những ảnh cũ người dùng
+  chưa bấm Xóa.
+*/
+
+const oldPhotoUrls =
+  Array.isArray(
+    remainingOldPhotos[order]
+  )
+
+    ? remainingOldPhotos[order]
+
+    : (
+        savedRow
+          ? parsePhotoUrls(
+              savedRow.photo_urls
+            )
+          : []
+      );
 
 
     /* REQUIRED */
