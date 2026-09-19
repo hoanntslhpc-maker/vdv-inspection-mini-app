@@ -5,7 +5,7 @@ const tg = window.Telegram.WebApp;
 ========================================= */
 
 const API_BASE =
-  "https://hostels-adsl-nyc-baths.trycloudflare.com/webhook";
+  "https://n8n.quantrac.bid/webhook";
 
 const SEARCH_API_URL =
   `${API_BASE}/search-device`;
