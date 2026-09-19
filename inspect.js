@@ -4821,16 +4821,34 @@ files.forEach(
 
 
     /*
-      Thoát trạng thái edit.
-    */
+  Lưu thành công:
+  Xóa danh sách ảnh mới đã gửi lên n8n.
 
-    editingExistingInspection =
-      false;
+  Tránh upload lại các ảnh này
+  khi người dùng chỉnh sửa kết quả.
+*/
+
+for (
+  const order
+  of Object.keys(selectedPhotos)
+) {
+
+  selectedPhotos[order] =
+    [];
+
+}
 
 
-    savedInspectionRows =
-      [];
+/*
+  Thoát trạng thái edit.
+*/
 
+editingExistingInspection =
+  false;
+
+
+savedInspectionRows =
+  [];
 
     /*
       Cập nhật ngay số lượng đã kiểm tra
