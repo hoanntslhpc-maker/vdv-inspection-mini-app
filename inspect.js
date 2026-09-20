@@ -907,6 +907,8 @@ function renderDevices(list) {
         ];
 
 
+      const isInspecting = String(savedStatus?.status || "").trim().toUpperCase() === "INSPECTING";
+
       const isCompleted =
         String(
           savedStatus?.status
@@ -958,7 +960,9 @@ function renderDevices(list) {
 
             `
 
-            : ""
+            : isInspecting
+              ? `<div style="margin-top:6px;color:#b45309;font-weight:700;">💾 Đang kiểm tra — tiếp tục nhập</div>`
+              : ""
         }
 
       `;
@@ -1077,6 +1081,23 @@ async function selectDevice(
       device.sensor_type
     )
   );
+
+  // Mở lại thiết bị đang kiểm tra: nạp dữ liệu đã lưu để nhập tiếp.
+  if (String(deviceStatusMap[String(device.code || "").trim()]?.status || "").toUpperCase() === "INSPECTING") {
+    try {
+      const rows = await fetchSavedInspection();
+      if (rows.length && selectedDevice?.code === device.code) {
+        savedInspectionRows = rows;
+        editingExistingInspection = true;
+        prefillSavedInspection(rows);
+      }
+    } catch (error) {
+      console.error("LOAD PARTIAL INSPECTION:", error);
+      alert("Không tải được kết quả đã lưu để kiểm tra tiếp. Vui lòng mở lại thiết bị.");
+      return;
+    }
+  }
+  updateInspectionSaveButton();
 
 }
 
@@ -1459,6 +1480,8 @@ function renderProcedure() {
   showElement(
     "saveSection"
   );
+  updateDplStep4Visibility();
+  updateInspectionSaveButton();
 
 }
 
@@ -1639,6 +1662,9 @@ function createProcedureStep(
     step
   );
 
+
+  wrapper.addEventListener("input", updateInspectionSaveButton);
+  wrapper.addEventListener("change", updateInspectionSaveButton);
 
   const photoInput =
     wrapper.querySelector(
@@ -3098,9 +3124,7 @@ window.editSavedInspection =
       );
 
 
-      resetSaveButton(
-        "💾 LƯU THAY ĐỔI"
-      );
+      updateInspectionSaveButton();
 
 
       showElement(
@@ -3329,6 +3353,14 @@ function prefillSavedInspection(
 
         }
 
+        if (isDpl420Step3(step)) {
+          const converted = document.getElementById(`converted-mm-${order}`);
+          const displayed = document.getElementById(`display-mm-${order}`);
+          if (converted) converted.value = values?.converted_mm ?? "";
+          if (displayed) displayed.value = values?.display_mm ?? "";
+          if (converted && !converted.value) updateDplConvertedValue(order);
+        }
+
       }
 
 
@@ -3489,6 +3521,8 @@ function prefillSavedInspection(
     }
 
   );
+  updateDplStep4Visibility();
+  updateInspectionSaveButton();
 
 }
 
@@ -3985,472 +4019,130 @@ function getSavedRow(
    27. COLLECT RESULTS
 ========================================================= */
 
-function collectResults() {
-
-  const results = [];
-
-
-  for (
-    const step
-    of currentProcedure
-  ) {
-
-
-    const order =
-      Number(
-        step.step_order
-      );
-
-
-    const type =
-      String(
-        step.input_type ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    let value =
-      "";
-
-
-    let assessment =
-      "";
-
-
-    if (
-  type ===
-  "multi_number_result"
-) {
-
-  const units =
-    String(
-      step.unit || ""
-    )
-      .split(",")
-      .map(
-        value =>
-          value.trim()
-      )
-      .filter(Boolean);
-
-
-  const values = {};
-
-
-  units.forEach(
-    (unit, index) => {
-
-      const input =
-        document.getElementById(
-          `multi-${order}-${index}`
-        );
-
-
-      values[unit] =
-        input
-          ? input.value.trim()
-          : "";
-
-    }
-  );
-
-
-  /*
-    DPL_420MA - BƯỚC 3
-    Lưu thêm dữ liệu phục vụ biên bản
-  */
-
-  if (
-    String(
-      step.procedure_code || ""
-    )
-      .trim()
-      .toUpperCase()
-    === "DPL_420MA"
-
-    &&
-
-    Number(order) === 3
-  ) {
-
-    const {
-      axis,
-      factor
-    } =
-      getDplAxisAndFactor();
-
-
-    const convertedInput =
-      document.getElementById(
-        `converted-mm-${order}`
-      );
-
-
-    const displayInput =
-      document.getElementById(
-        `display-mm-${order}`
-      );
-
-
-    values.axis =
-      axis || "";
-
-
-    values.factor =
-      factor ?? "";
-
-
-    values.converted_mm =
-      convertedInput
-        ? convertedInput.value.trim()
-        : "";
-
-
-    values.display_mm =
-      displayInput
-        ? displayInput.value.trim()
-        : "";
-
-  }
-
-
-  
-      value =
-        values;
-
-
-      assessment =
-        document.getElementById(
-          `assessment-${order}`
-        )
-          ?.value
-          ?.trim()
-        ||
-        "";
-
-    }
-
-
-    else if (
-      type ===
-      "multi_node_number"
-    ) {
-
-      const holder =
-        document.getElementById(
-          `nodes-${order}`
-        );
-
-
-      const nodes = [];
-
-
-      if (holder) {
-
-        [
-          ...holder.children
-        ]
-          .forEach(
-            (_, index) => {
-
-
-              nodes.push({
-
-                node:
-                  document.getElementById(
-                    `node-name-${order}-${index}`
-                  )
-                    ?.value
-                    ?.trim()
-                  ||
-                  "",
-
-                value:
-                  document.getElementById(
-                    `node-value-${order}-${index}`
-                  )
-                    ?.value
-                    ?.trim()
-                  ||
-                  "",
-
-                status:
-                  document.getElementById(
-                    `node-status-${order}-${index}`
-                  )
-                    ?.value
-                    ?.trim()
-                  ||
-                  ""
-
-              });
-
-            }
-          );
-
-      }
-
-
-      value =
-        nodes;
-
-    }
-
-
-    else {
-
-      value =
-        document.getElementById(
-          `value-${order}`
-        )
-          ?.value
-          ?.trim()
-        ||
-        "";
-
-
-      assessment =
-        document.getElementById(
-          `assessment-${order}`
-        )
-          ?.value
-          ?.trim()
-        ||
-        "";
-
-    }
-
-
-    const note =
-      document.getElementById(
-        `note-${order}`
-      )
-        ?.value
-        ?.trim()
-      ||
-      "";
-
-
-    /*
-  Số ảnh mới hiện còn lại
-  sau khi người dùng thêm/xóa ảnh
-*/
-
-const newPhotoCount =
-  (
-    selectedPhotos[order]
-    ||
-    []
-  ).length;
-
-
-    const savedRow =
-      getSavedRow(
-        order
-      );
-
-
-   /*
-  Khi đang chỉnh sửa:
-  chỉ giữ những ảnh cũ người dùng
-  chưa bấm Xóa.
-*/
-
-const oldPhotoUrls =
-  Array.isArray(
-    remainingOldPhotos[order]
-  )
-
-    ? remainingOldPhotos[order]
-
-    : (
-        savedRow
-          ? parsePhotoUrls(
-              savedRow.photo_urls
-            )
-          : []
-      );
-
-
-    /* REQUIRED */
-
-    if (
-      toBoolean(
-        step.required
-      )
-    ) {
-
-
-      if (
-        type ===
-        "multi_number_result"
-      ) {
-
-        if (
-          Object
-            .values(value)
-            .some(
-              item =>
-                item === ""
-            )
-        ) {
-
-          alert(
-            `Bước ${order}: Chưa nhập đủ giá trị.`
-          );
-
-          return null;
-
-        }
-
-
-        if (!assessment) {
-
-          alert(
-            `Bước ${order}: Chưa chọn đánh giá.`
-          );
-
-          return null;
-
-        }
-
-      }
-
-
-      else if (
-        type ===
-        "multi_node_number"
-      ) {
-
-        if (
-          !value.length
-          ||
-          value.some(
-            item =>
-              !item.node
-              ||
-              !item.value
-              ||
-              !item.status
-          )
-        ) {
-
-          alert(
-            `Bước ${order}: Chưa nhập đủ dữ liệu mắt cảm biến.`
-          );
-
-          return null;
-
-        }
-
-      }
-
-
-      else {
-
-        if (!value) {
-
-          alert(
-            `Bước ${order}: Chưa nhập/chọn kết quả.`
-          );
-
-          return null;
-
-        }
-
-
-        if (
-          type ===
-          "number_result"
-          &&
-          document.getElementById(
-            `assessment-${order}`
-          )
-          &&
-          !assessment
-        ) {
-
-          alert(
-            `Bước ${order}: Chưa chọn đánh giá.`
-          );
-
-          return null;
-
-        }
-
-      }
-
-    }
-
-
-    /* PHOTO REQUIRED */
-
-    if (
-      toBoolean(
-        step.photo_required
-      )
-    ) {
-
-      const min =
-        Number(
-          step.photo_min ||
-          1
-        );
-
-
-      if (
-        newPhotoCount
-        +
-        oldPhotoUrls.length
-        <
-        min
-      ) {
-
-        alert(
-          `Bước ${order}: Cần tối thiểu ${min} ảnh.`
-        );
-
-        return null;
-
-      }
-
-    }
-
-
-    results.push({
-
-      step_order:
-        order,
-
-      step_title:
-        step.step_title || "",
-
-      result:
-        value,
-
-      assessment:
-        assessment,
-
-      note:
-        note,
-
-      unit:
-        step.unit || "",
-
-      existing_photo_urls:
-        oldPhotoUrls
-
-    });
-
-  }
-
-
-  return results;
-
+// Chỉ áp dụng nhánh bỏ qua bước 4 cho DPL_420MA.
+function isDpl420Procedure() {
+  return currentProcedure.some(isDpl420Step3);
 }
 
+function getDplStep3Assessment() {
+  return String(document.getElementById("assessment-3")?.value || "").trim().toLowerCase();
+}
+
+function isDplStep4Skipped() {
+  return isDpl420Procedure() && getDplStep3Assessment() === "đạt";
+}
+
+function updateDplStep4Visibility() {
+  if (!isDpl420Procedure()) return;
+  const step4 = currentProcedure.find(step => Number(step.step_order) === 4);
+  if (!step4) return;
+  const wrapper = document.getElementById("result-4")?.closest(".procedure-step");
+  if (!wrapper) return;
+  const skipped = isDplStep4Skipped();
+  wrapper.classList.toggle("hidden", skipped);
+  // Không xóa dữ liệu bước 4 đã nhập: người dùng có thể đổi lại đánh giá bước 3.
+  updateInspectionSaveButton();
+}
+
+function readInspectionStep(step) {
+  const order = Number(step.step_order);
+  const type = String(step.input_type || "select_note").trim().toLowerCase();
+  let value = "";
+  let assessment = "";
+
+  if (type === "multi_number_result") {
+    const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
+    value = {};
+    units.forEach((unit, index) => {
+      value[unit] = document.getElementById(`multi-${order}-${index}`)?.value?.trim() || "";
+    });
+    if (isDpl420Step3(step)) {
+      const {axis, factor} = getDplAxisAndFactor();
+      value.axis = axis || "";
+      value.factor = factor ?? "";
+      value.converted_mm = document.getElementById(`converted-mm-${order}`)?.value?.trim() || "";
+      value.display_mm = document.getElementById(`display-mm-${order}`)?.value?.trim() || "";
+    }
+    assessment = document.getElementById(`assessment-${order}`)?.value?.trim() || "";
+  } else if (type === "multi_node_number") {
+    const holder = document.getElementById(`nodes-${order}`);
+    value = holder ? Array.from(holder.children).map((_, index) => ({
+      node: document.getElementById(`node-name-${order}-${index}`)?.value?.trim() || "",
+      value: document.getElementById(`node-value-${order}-${index}`)?.value?.trim() || "",
+      status: document.getElementById(`node-status-${order}-${index}`)?.value?.trim() || ""
+    })) : [];
+  } else {
+    value = document.getElementById(`value-${order}`)?.value?.trim() || "";
+    assessment = document.getElementById(`assessment-${order}`)?.value?.trim() || "";
+  }
+  const savedRow = getSavedRow(order);
+  const oldPhotoUrls = Array.isArray(remainingOldPhotos[order])
+    ? remainingOldPhotos[order]
+    : savedRow ? parsePhotoUrls(savedRow.photo_urls) : [];
+  return {
+    step_order: order,
+    step_title: step.step_title || "",
+    result: value,
+    assessment,
+    note: document.getElementById(`note-${order}`)?.value?.trim() || "",
+    unit: step.unit || "",
+    existing_photo_urls: oldPhotoUrls,
+    photo_count: oldPhotoUrls.length + (selectedPhotos[order] || []).length
+  };
+}
+
+function isStepComplete(step, result) {
+  const type = String(step.input_type || "select_note").trim().toLowerCase();
+  if (isDpl420Procedure() && Number(step.step_order) === 4 && isDplStep4Skipped()) return true;
+  if (type === "multi_number_result") {
+    const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
+    if (!units.length || units.some(unit => result.result?.[unit] === "" || result.result?.[unit] == null)) return false;
+    if (isDpl420Step3(step) && (result.result.converted_mm === "" || result.result.display_mm === "")) return false;
+    if (!result.assessment) return false;
+  } else if (type === "multi_node_number") {
+    if (!result.result.length || result.result.some(node => !node.node || !node.value || !node.status)) return false;
+  } else {
+    if (result.result === "" || result.result == null) return false;
+    if (type === "number_result" && document.getElementById(`assessment-${step.step_order}`) && !result.assessment) return false;
+  }
+  // Bước 5 DPL: đánh giá và ghi chú đều do người kiểm tra nhập.
+  if (isDpl420Procedure() && Number(step.step_order) === 5 && !result.note) return false;
+  if (toBoolean(step.photo_required) && result.photo_count < Number(step.photo_min || 1)) return false;
+  return true;
+}
+
+function getInspectionProgress() {
+  const results = currentProcedure.map(readInspectionStep);
+  const completed = currentProcedure.every((step, index) =>
+    !toBoolean(step.required) || isStepComplete(step, results[index])
+  );
+  return {results, completed, status: completed ? "COMPLETED" : "INSPECTING"};
+}
+
+function updateInspectionSaveButton() {
+  const button = document.getElementById("saveInspectionButton");
+  if (!button || button.disabled || !currentProcedure.length) return;
+  button.textContent = getInspectionProgress().completed
+    ? "✅ HOÀN THÀNH CÔNG VIỆC"
+    : "💾 LƯU KẾT QUẢ";
+}
+
+function collectResults() {
+  const progress = getInspectionProgress();
+  // Lưu tạm cho phép thiếu bước, nhưng không cho phép gửi biểu mẫu hoàn toàn trống.
+  const hasData = progress.results.some(row => {
+    const value = row.result;
+    return row.assessment || row.note || row.photo_count ||
+      (Array.isArray(value) ? value.some(n => n.node || n.value || n.status) :
+       value && typeof value === "object" ? Object.entries(value).some(([k,v]) =>
+         !["axis", "factor"].includes(k) && v !== "" && v != null) : value !== "");
+  });
+  if (!hasData) {
+    alert("Bạn chưa nhập kết quả kiểm tra nào.");
+    return null;
+  }
+  return progress;
+}
 
 
 /* =========================================================
@@ -4479,11 +4171,9 @@ async function saveInspection(event) {
   }
 
 
-  const results =
-    collectResults();
+  const progress = collectResults();
 
-
-  if (!results) {
+  if (!progress) {
 
     return;
 
@@ -4539,8 +4229,21 @@ async function saveInspection(event) {
       .toISOString();
 
 
+  const results = progress.results.map(row => ({...row}));
+  if (isDplStep4Skipped()) {
+    const step4 = results.find(row => row.step_order === 4);
+    if (step4) {
+      step4.result = "Không kiểm tra";
+      step4.assessment = "Không kiểm tra – bước 3 đạt";
+      step4.note = "Bước 3 đạt, không thực hiện bước 4.";
+      step4.existing_photo_urls = [];
+    }
+  }
+
   const payload = {
 
+    inspection_status: progress.status,
+    device_status: progress.status,
     mode:
       wasEditing
         ? "EDIT"
@@ -4643,11 +4346,7 @@ async function saveInspection(event) {
       );
 
 
-    if (
-      !input
-      ||
-      !input.files
-    ) {
+    if (!input) {
 
       continue;
 
@@ -4801,7 +4500,7 @@ files.forEach(
         ).trim(),
 
       status:
-        "COMPLETED",
+        progress.status,
 
       inspector_id:
         telegramUser.id
@@ -4844,11 +4543,10 @@ for (
 */
 
 editingExistingInspection =
-  false;
+  !progress.completed;
 
 
-savedInspectionRows =
-  [];
+if (progress.completed) savedInspectionRows = [];
 
     /*
       Cập nhật ngay số lượng đã kiểm tra
@@ -4895,30 +4593,19 @@ savedInspectionRows =
       savedDevice;
 
 
-    if (savedButton) {
-
-      showCompletedDevice(
-
-        savedDevice,
-
-        deviceStatusMap[
-          savedDeviceCode
-        ],
-
-        savedButton
-
-      );
-
+    if (savedButton && progress.completed) {
+      showCompletedDevice(savedDevice, deviceStatusMap[savedDeviceCode], savedButton);
+    } else if (savedButton) {
+      // Giữ nguyên biểu mẫu hiện tại: n8n có thể chưa ghi xong khi trả HTTP 200.
+      savedButton.classList.add("active");
     }
 
 
     alert(
 
-      wasEditing
-
-        ? `✅ Đã cập nhật kết quả ${savedDeviceCode}.`
-
-        : `✅ Đã lưu kết quả ${savedDeviceCode}.`
+      progress.completed
+        ? `✅ Đã gửi kết quả hoàn thành ${savedDeviceCode}.`
+        : `💾 Đã gửi kết quả đang kiểm tra ${savedDeviceCode}. Có thể mở lại để nhập tiếp sau khi n8n ghi xong.`
 
     );
 
@@ -4953,9 +4640,9 @@ savedInspectionRows =
           */
 
           if (
-            !deviceStatusMap[
-              savedDeviceCode
-            ]
+            !deviceStatusMap[savedDeviceCode] ||
+            (deviceStatusMap[savedDeviceCode].status !== localStatus.status &&
+             Date.now() - new Date(nowIso).getTime() < 15000)
           ) {
 
             deviceStatusMap[
@@ -5014,11 +4701,9 @@ savedInspectionRows =
 
     resetSaveButton(
 
-      wasEditing
-
-        ? "💾 LƯU THAY ĐỔI"
-
-        : "💾 LƯU KẾT QUẢ KIỂM TRA"
+      progress.completed
+        ? "✅ HOÀN THÀNH CÔNG VIỆC"
+        : "💾 LƯU KẾT QUẢ"
 
     );
 
