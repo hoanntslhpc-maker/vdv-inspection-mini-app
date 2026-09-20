@@ -3251,7 +3251,9 @@ function prefillSavedInspection(
         if (input) {
 
           input.value =
-            resultValue;
+            type === "final_assessment"
+              ? (resultStatus || resultValue)
+              : resultValue;
 
         }
 
@@ -4147,6 +4149,9 @@ function readInspectionStep(step) {
     value = document.getElementById(`value-${order}`)?.value?.trim() || "";
     assessment = document.getElementById(`assessment-${order}`)?.value?.trim() || "";
   }
+  // Bước 5 (final_assessment) dùng select value-5 nhưng cần lưu
+  // riêng result_status để báo cáo Google Docs đọc đúng đánh giá.
+  if (type === "final_assessment") assessment = value;
   const savedRow = getSavedRow(order);
   const oldPhotoUrls = Array.isArray(remainingOldPhotos[order])
     ? remainingOldPhotos[order]
@@ -4169,7 +4174,10 @@ function isStepComplete(step, result) {
   if (type === "multi_number_result") {
     const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
     if (!units.length || units.some(unit => result.result?.[unit] === "" || result.result?.[unit] == null)) return false;
-    if (isDpl420Step3(step) && (result.result.converted_mm === "" || result.result.display_mm === "")) return false;
+    if (isDpl420Step3(step) && (
+      result.result.converted_mm === "" || result.result.display_mm === "" ||
+      !result.result.axis || result.result.factor === ""
+    )) return false;
     if (!result.assessment) return false;
   } else if (type === "multi_node_number") {
     if (!result.result.length || result.result.some(node => !node.node || !node.value || !node.status)) return false;
@@ -4177,16 +4185,23 @@ function isStepComplete(step, result) {
     if (result.result === "" || result.result == null) return false;
     if (type === "number_result" && document.getElementById(`assessment-${step.step_order}`) && !result.assessment) return false;
   }
-  // Bước 5 DPL: đánh giá và ghi chú đều do người kiểm tra nhập.
-  if (isDpl420Procedure() && Number(step.step_order) === 5 && !result.note) return false;
-  if (toBoolean(step.photo_required) && result.photo_count < Number(step.photo_min || 1)) return false;
+  // DPL: bước 1, 2, 3 luôn phải có ảnh, kể cả Google Sheet
+  // vô tình để photo_required = FALSE.
+  const mandatoryDplPhoto = isDpl420Procedure() && [1, 2, 3].includes(Number(step.step_order));
+  if ((mandatoryDplPhoto || toBoolean(step.photo_required)) &&
+      result.photo_count < Math.max(mandatoryDplPhoto ? 1 : 0, Number(step.photo_min || 1))) return false;
+  // Bước 5 DPL: phải có đánh giá thủ công và ghi chú.
+  if (isDpl420Procedure() && Number(step.step_order) === 5 &&
+      (!["Đạt", "Không đạt"].includes(result.assessment) || !result.note)) return false;
   return true;
 }
 
 function getInspectionProgress() {
   const results = currentProcedure.map(readInspectionStep);
   const completed = currentProcedure.every((step, index) =>
-    !toBoolean(step.required) || isStepComplete(step, results[index])
+    (isDpl420Procedure() && [1, 2, 3, 4, 5].includes(Number(step.step_order)))
+      ? isStepComplete(step, results[index])
+      : (!toBoolean(step.required) || isStepComplete(step, results[index]))
   );
   return {results, completed, status: completed ? "COMPLETED" : "INSPECTING"};
 }
@@ -4201,21 +4216,43 @@ function updateInspectionSaveButton() {
 
 function collectResults() {
   const progress = getInspectionProgress();
-  // Lưu tạm cho phép thiếu bước, nhưng không cho phép gửi biểu mẫu hoàn toàn trống.
-  const hasData = progress.results.some(row => {
-    const value = row.result;
-    return row.assessment || row.note || row.photo_count ||
-      (Array.isArray(value) ? value.some(n => n.node || n.value || n.status) :
-       value && typeof value === "object" ? Object.entries(value).some(([k,v]) =>
-         !["axis", "factor"].includes(k) && v !== "" && v != null) : value !== "");
-  });
-  if (!hasData) {
-    alert("Bạn chưa nhập kết quả kiểm tra nào.");
-    return null;
+
+  // Với DPL_420MA, chỉ cho phép lưu tạm sau khi đã kiểm tra
+  // đầy đủ bước 1, 2, 3, BAO GỒM ẢNH (ảnh mới hoặc ảnh đã lưu).
+  if (isDpl420Procedure()) {
+    for (const order of [1, 2, 3]) {
+      const step = currentProcedure.find(s => Number(s.step_order) === order);
+      const row = progress.results.find(r => r.step_order === order);
+      if (!step || !row) {
+        alert(`Không tìm thấy bước ${order} trong quy trình.`);
+        return null;
+      }
+      if (row.photo_count < Math.max(1, Number(step.photo_min || 1))) {
+        alert(`Bước ${order} bắt buộc có ít nhất ${Math.max(1, Number(step.photo_min || 1))} ảnh trước khi lưu.`);
+        return null;
+      }
+      if (!isStepComplete(step, row)) {
+        alert(order === 3
+          ? "Bước 3: cần nhập đầy đủ số đo mA, V, giá trị hiển thị mm và chọn Đạt/Không đạt."
+          : `Bước ${order}: cần nhập đầy đủ kết quả kiểm tra trước khi lưu.`);
+        return null;
+      }
+    }
+  } else {
+    const hasData = progress.results.some(row => {
+      const value = row.result;
+      return row.assessment || row.note || row.photo_count ||
+        (Array.isArray(value) ? value.some(n => n.node || n.value || n.status) :
+         value && typeof value === "object" ? Object.entries(value).some(([k,v]) =>
+           !["axis", "factor"].includes(k) && v !== "" && v != null) : value !== "");
+    });
+    if (!hasData) {
+      alert("Bạn chưa nhập kết quả kiểm tra nào.");
+      return null;
+    }
   }
   return progress;
 }
-
 
 /* =========================================================
    28. SAVE INSPECTION
