@@ -1477,6 +1477,20 @@ function renderProcedure() {
   );
 
 
+  // Đồng bộ ngay sau khi toàn bộ bước đã được gắn vào DOM.
+  // Delegation còn hoạt động khi người dùng đổi kết quả ở bất kỳ bước nào.
+  if (container && !container.dataset.inspectionListenersBound) {
+    const onInspectionEdit = event => {
+      if (event.target?.id === "assessment-3") {
+        updateDplStep4Visibility();
+      }
+      updateInspectionSaveButton();
+    };
+    container.addEventListener("change", onInspectionEdit);
+    container.addEventListener("input", onInspectionEdit);
+    container.dataset.inspectionListenersBound = "1";
+  }
+
   showElement(
     "saveSection"
   );
@@ -2202,10 +2216,12 @@ function renderInput(
         cập nhật việc hiển thị Bước 4.
       */
 
+      // Phần tử vừa được tạo trong container.innerHTML nhưng container
+      // CHƯA được gắn vào document; getElementById ở đây trả về null.
       const assessmentInput =
 
-        document.getElementById(
-          `assessment-${order}`
+        container.querySelector(
+          `#assessment-${order}`
         );
 
 
