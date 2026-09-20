@@ -4034,13 +4034,69 @@ function isDplStep4Skipped() {
 
 function updateDplStep4Visibility() {
   if (!isDpl420Procedure()) return;
+
   const step4 = currentProcedure.find(step => Number(step.step_order) === 4);
   if (!step4) return;
-  const wrapper = document.getElementById("result-4")?.closest(".procedure-step");
+
+  const resultInput = document.getElementById("value-4");
+  const wrapper = resultInput?.closest(".procedure-step") ||
+    document.getElementById("result-4")?.closest(".procedure-step");
   if (!wrapper) return;
+
   const skipped = isDplStep4Skipped();
-  wrapper.classList.toggle("hidden", skipped);
-  // Không xóa dữ liệu bước 4 đã nhập: người dùng có thể đổi lại đánh giá bước 3.
+  const automaticValue = "Không kiểm tra";
+  const automaticNote = "Bước 3 đạt, không thực hiện bước 4.";
+  const noteInput = document.getElementById("note-4");
+  const photoInput = document.getElementById("photo-4");
+
+  // Bước 4 luôn hiển thị để người kiểm tra nhìn thấy kết quả tự động.
+  wrapper.classList.remove("hidden");
+
+  if (resultInput) {
+    if (skipped) {
+      // Với select, phải thêm option trước khi gán value; nếu không UI vẫn trống.
+      if (resultInput.tagName === "SELECT" &&
+          !Array.from(resultInput.options).some(o => o.value === automaticValue)) {
+        resultInput.add(new Option(automaticValue, automaticValue));
+      }
+      // Giữ lựa chọn thủ công để khôi phục nếu đổi lại bước 3 Không đạt.
+      if (!resultInput.dataset.dplAutoSkip) {
+        resultInput.dataset.dplManualValue = resultInput.value || "";
+      }
+      resultInput.value = automaticValue;
+      resultInput.dataset.dplAutoSkip = "1";
+      resultInput.disabled = true;
+    } else {
+      if (resultInput.dataset.dplAutoSkip === "1") {
+        resultInput.value = resultInput.dataset.dplManualValue || "";
+      }
+      delete resultInput.dataset.dplAutoSkip;
+      resultInput.disabled = false;
+    }
+  }
+
+  if (noteInput) {
+    if (skipped) {
+      if (!noteInput.dataset.dplAutoSkip) {
+        noteInput.dataset.dplManualValue = noteInput.value || "";
+      }
+      noteInput.value = automaticNote;
+      noteInput.dataset.dplAutoSkip = "1";
+      noteInput.disabled = true;
+    } else {
+      if (noteInput.dataset.dplAutoSkip === "1") {
+        noteInput.value = noteInput.dataset.dplManualValue || "";
+      }
+      delete noteInput.dataset.dplAutoSkip;
+      noteInput.disabled = false;
+    }
+  }
+
+  // Bước 3 Đạt: không bắt ảnh bước 4; Không đạt: trả lại quyền tải ảnh.
+  if (photoInput) photoInput.disabled = skipped;
+  const photoBox = photoInput?.closest(".photo-box");
+  if (photoBox) photoBox.classList.toggle("hidden", skipped);
+
   updateInspectionSaveButton();
 }
 
