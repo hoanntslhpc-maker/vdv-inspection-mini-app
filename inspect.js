@@ -4295,9 +4295,11 @@ function isStepComplete(step, result) {
   const mandatoryDplPhoto = isDpl420Procedure() && [1, 2, 3].includes(Number(step.step_order));
   if ((mandatoryDplPhoto || toBoolean(step.photo_required)) &&
       result.photo_count < Math.max(mandatoryDplPhoto ? 1 : 0, Number(step.photo_min || 1))) return false;
-  // Bước 5 DPL: phải có đánh giá thủ công và ghi chú.
+  // Bước 5 DPL: chấp nhận lựa chọn đánh giá thực tế trong cấu hình
+  // (ví dụ "Bình thường"), không ép thành "Đạt"/"Không đạt".
+  // Bắt buộc có đánh giá và ghi chú để hoàn thành thiết bị.
   if (isDpl420Procedure() && Number(step.step_order) === 5 &&
-      (!["Đạt", "Không đạt"].includes(result.assessment) || !result.note)) return false;
+      (!String(result.assessment || "").trim() || !String(result.note || "").trim())) return false;
   return true;
 }
 
