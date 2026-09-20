@@ -1142,7 +1142,17 @@ async function selectDevice(
   const code = String(device.code || "").trim();
   const pending = pendingInspectionByDevice[code];
   try {
-    const backendRows = await fetchSavedInspection();
+    // n8n/Sheets có thể trả phản hồi rỗng thoáng qua sau khi lưu.
+    // Thử lại một lần trước khi coi việc đọc dữ liệu là lỗi.
+    let backendRows;
+    try {
+      backendRows = await fetchSavedInspection();
+    } catch (firstError) {
+      if (selectionVersion !== deviceSelectionVersion) return;
+      await new Promise(resolve => setTimeout(resolve, 600));
+      if (selectionVersion !== deviceSelectionVersion) return;
+      backendRows = await fetchSavedInspection();
+    }
     if (selectionVersion !== deviceSelectionVersion ||
         String(selectedDevice?.code || "").trim() !== code) return;
 
@@ -1165,8 +1175,11 @@ async function selectDevice(
       prefillSavedInspection(backendRows);
     }
   } catch (error) {
+    // Không báo lỗi từ request của thiết bị cũ khi người dùng đã chuyển thiết bị.
+    if (selectionVersion !== deviceSelectionVersion ||
+        String(selectedDevice?.code || "").trim() !== code) return;
     console.error("LOAD SAVED INSPECTION:", error);
-    if (pending && selectionVersion === deviceSelectionVersion) {
+    if (pending) {
       savedInspectionRows = pending.rows;
       editingExistingInspection = true;
       prefillSavedInspection(pending.rows);
@@ -1175,8 +1188,18 @@ async function selectDevice(
         renderPhotoPreviews(Number(order));
       });
     } else {
-      alert("Không tải được kết quả đã lưu. Vui lòng thử lại.");
-      return;
+      // Thiết bị chưa có kết quả: biểu mẫu trống là bình thường.
+      // Thiết bị đang kiểm tra: báo lỗi ngay trong biểu mẫu, không bật
+      // alert chặn giao diện; có thể bấm lại thiết bị để tải lại.
+      const status = String(deviceStatusMap[code]?.status || "").trim().toUpperCase();
+      if (status === "INSPECTING" || status === "COMPLETED") {
+        const list = document.getElementById("procedureList");
+        if (list) {
+          list.innerHTML = '<div class="error-box">Chưa tải được kết quả đã lưu. Anh bấm lại thiết bị để thử tải lại trước khi nhập tiếp.</div>';
+        }
+        hideElement("saveSection");
+        return;
+      }
     }
   }
   updateInspectionSaveButton();
