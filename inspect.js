@@ -63,6 +63,46 @@ const selectedPhotos = {};
 */
 const remainingOldPhotos = {};
 
+// Giữ kết quả vừa gửi trong phiên Mini App cho tới khi n8n ghi xong.
+// Tránh mất dữ liệu khi chuyển thiết bị ngay sau khi bấm Lưu.
+const pendingInspectionByDevice = {};
+let deviceSelectionVersion = 0;
+
+function clearInspectionPhotoState() {
+  Object.keys(selectedPhotos).forEach(key => delete selectedPhotos[key]);
+  Object.keys(remainingOldPhotos).forEach(key => delete remainingOldPhotos[key]);
+}
+
+function inspectionRowsFromPayload(payload) {
+  return payload.results.map(row => ({
+    job_id: payload.job_id,
+    device_code: payload.device_code,
+    step_order: row.step_order,
+    step_title: row.step_title,
+    result_value: typeof row.result_value === "object"
+      ? JSON.stringify(row.result_value) : row.result_value ?? "",
+    result_status: row.result_status || "",
+    note: row.note || "",
+    unit: row.unit || "",
+    photo_urls: JSON.stringify(row.existing_photo_urls || [])
+  }));
+}
+
+function pendingIsInBackend(pending, rows) {
+  if (!rows.length || rows.length < pending.rows.length) return false;
+  return pending.rows.every(local => {
+    const remote = rows.find(row => Number(row.step_order) === Number(local.step_order));
+    if (!remote) return false;
+    const localValue = String(local.result_value ?? "");
+    const remoteValue = String(remote.result_value ?? "");
+    const expectedPhotos = parsePhotoUrls(local.photo_urls).length +
+      (pending.photos[local.step_order] || []).length;
+    return localValue === remoteValue &&
+      parsePhotoUrls(remote.photo_urls).length >= expectedPhotos;
+  });
+}
+
+
 /* =========================================================
    3. JOB ID
 ========================================================= */
@@ -218,6 +258,7 @@ async function loadDeviceStatuses() {
     Không cache dữ liệu cũ.
   */
 
+  const previousStatuses = { ...deviceStatusMap };
   deviceStatusMap = {};
 
   try {
@@ -296,6 +337,11 @@ async function loadDeviceStatuses() {
       }
     );
 
+
+    // Không để phản hồi trạng thái cũ xóa INSPECTING/COMPLETED vừa gửi.
+    Object.keys(pendingInspectionByDevice).forEach(code => {
+      if (previousStatuses[code]) deviceStatusMap[code] = previousStatuses[code];
+    });
 
     console.log(
       "DEVICE STATUS:",
@@ -692,6 +738,9 @@ async function selectDeviceGroup(
   button
 ) {
 
+  ++deviceSelectionVersion;
+  clearInspectionPhotoState();
+
   selectedGroup =
     groupKey;
 
@@ -1024,6 +1073,9 @@ async function selectDevice(
   button
 ) {
 
+  ++deviceSelectionVersion;
+  clearInspectionPhotoState();
+
   selectedDevice =
     device;
 
@@ -1076,24 +1128,54 @@ async function selectDevice(
   );
 
 
+  const requestVersion = deviceSelectionVersion;
   await loadProcedure(
     normalizeRawSensorType(
       device.sensor_type
     )
   );
+  if (requestVersion !== deviceSelectionVersion) return;
 
-  // Mở lại thiết bị đang kiểm tra: nạp dữ liệu đã lưu để nhập tiếp.
-  if (String(deviceStatusMap[String(device.code || "").trim()]?.status || "").toUpperCase() === "INSPECTING") {
-    try {
-      const rows = await fetchSavedInspection();
-      if (rows.length && selectedDevice?.code === device.code) {
-        savedInspectionRows = rows;
-        editingExistingInspection = true;
-        prefillSavedInspection(rows);
-      }
-    } catch (error) {
-      console.error("LOAD PARTIAL INSPECTION:", error);
-      alert("Không tải được kết quả đã lưu để kiểm tra tiếp. Vui lòng mở lại thiết bị.");
+  // Luôn đọc kết quả theo job + device, không phụ thuộc trạng thái
+  // GET_DEVICE_STATUS có thể còn cũ khi n8n đang xử lý sau HTTP 200.
+  const selectionVersion = deviceSelectionVersion;
+  const code = String(device.code || "").trim();
+  const pending = pendingInspectionByDevice[code];
+  try {
+    const backendRows = await fetchSavedInspection();
+    if (selectionVersion !== deviceSelectionVersion ||
+        String(selectedDevice?.code || "").trim() !== code) return;
+
+    const backendReady = pending && pendingIsInBackend(pending, backendRows);
+    if (backendReady) delete pendingInspectionByDevice[code];
+
+    if (pending && !backendReady) {
+      // Dữ liệu gửi đã nhận HTTP 200 nhưng Sheets chưa ghi xong:
+      // hiển thị lại đúng dữ liệu/ảnh đang giữ trong phiên hiện tại.
+      savedInspectionRows = pending.rows;
+      editingExistingInspection = true;
+      prefillSavedInspection(pending.rows);
+      Object.entries(pending.photos).forEach(([order, files]) => {
+        selectedPhotos[order] = [...files];
+        renderPhotoPreviews(Number(order));
+      });
+    } else if (backendRows.length) {
+      savedInspectionRows = backendRows;
+      editingExistingInspection = true;
+      prefillSavedInspection(backendRows);
+    }
+  } catch (error) {
+    console.error("LOAD SAVED INSPECTION:", error);
+    if (pending && selectionVersion === deviceSelectionVersion) {
+      savedInspectionRows = pending.rows;
+      editingExistingInspection = true;
+      prefillSavedInspection(pending.rows);
+      Object.entries(pending.photos).forEach(([order, files]) => {
+        selectedPhotos[order] = [...files];
+        renderPhotoPreviews(Number(order));
+      });
+    } else {
+      alert("Không tải được kết quả đã lưu. Vui lòng thử lại.");
       return;
     }
   }
@@ -4280,6 +4362,32 @@ async function saveInspection(event) {
   }
 
 
+  // Không gửi lần hai ảnh của một lần lưu còn đang được n8n xử lý.
+  const currentCode = String(selectedDevice.code || "").trim();
+  const pendingBeforeSave = pendingInspectionByDevice[currentCode];
+  if (pendingBeforeSave) {
+    try {
+      const remoteRows = await fetchSavedInspection();
+      if (pendingIsInBackend(pendingBeforeSave, remoteRows)) {
+        delete pendingInspectionByDevice[currentCode];
+        savedInspectionRows = remoteRows;
+        editingExistingInspection = true;
+        Object.keys(selectedPhotos).forEach(key => { selectedPhotos[key] = []; });
+        remoteRows.forEach(row => {
+          remainingOldPhotos[Number(row.step_order)] = parsePhotoUrls(row.photo_urls);
+          renderOldPhotos(Number(row.step_order));
+          renderPhotoPreviews(Number(row.step_order));
+        });
+      } else {
+        alert("Kết quả vừa lưu đang được đồng bộ lên Google Sheets. Vui lòng đợi một chút rồi bấm Lưu lại để tránh gửi trùng ảnh.");
+        return;
+      }
+    } catch (error) {
+      alert("Chưa xác nhận được lần lưu trước. Vui lòng thử lại sau để tránh gửi trùng ảnh.");
+      return;
+    }
+  }
+
   const progress = collectResults();
 
   if (!progress) {
@@ -4627,6 +4735,15 @@ files.forEach(
 
     };
 
+
+    // Giữ bản sao dữ liệu và File ảnh trong RAM cho thiết bị vừa lưu.
+    // HTTP 200 có thể đến trước khi n8n cập nhật Google Sheets.
+    pendingInspectionByDevice[savedDeviceCode] = {
+      rows: inspectionRowsFromPayload(payload),
+      photos: Object.fromEntries(Object.entries(selectedPhotos).map(
+        ([order, files]) => [order, [...files]]
+      ))
+    };
 
     /*
   Lưu thành công:
