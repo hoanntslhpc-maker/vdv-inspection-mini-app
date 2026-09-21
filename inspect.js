@@ -585,12 +585,29 @@ function renderJob() {
   );
 
 
-  setText(
-    "jobStatus",
-    formatStatus(
-      currentJob.status
-    )
-  );
+  // Người đã bấm "Nhận việc" phải được lưu vào dữ liệu Job bởi workflow nhận việc.
+  // Không dùng tên Telegram của người đang mở trang: họ có thể không phải người nhận việc.
+  const acceptedInspectorName = [
+    currentJob.inspector_name,
+    currentJob.accepted_by_name,
+    currentJob.assignee_name,
+    currentJob.receiver_name,
+    currentJob.accepted_name
+  ].map(value => String(value ?? "").trim()).find(Boolean) || "Chưa có dữ liệu người nhận việc";
+
+  setText("jobStatus", acceptedInspectorName);
+
+  // Giữ nguyên id jobStatus để không phải sửa các chỗ tham chiếu khác.
+  // Đổi nhãn của chính ô này từ "Trạng thái" thành "Người kiểm tra".
+  const jobStatusElement = document.getElementById("jobStatus");
+  const statusCard = jobStatusElement?.parentElement;
+  if (statusCard) {
+    const label = Array.from(statusCard.children).find(element =>
+      element !== jobStatusElement &&
+      /^trạng thái\s*:?$/i.test(String(element.textContent || "").trim())
+    );
+    if (label) label.textContent = "Người kiểm tra";
+  }
 
 
   showElement(
