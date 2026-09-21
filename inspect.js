@@ -1711,12 +1711,12 @@ function createProcedureStep(
       <div class="form-group">
 
         <label class="form-label">
-          Ghi chú
+          ${isDpl420Procedure() && order === 5 ? "Kết luận kiểm tra *" : "Ghi chú"}
         </label>
 
         <textarea
           id="note-${order}"
-          placeholder="Nhập ghi chú nếu có..."
+          placeholder="${isDpl420Procedure() && order === 5 ? "Nhập kết luận về tình trạng thiết bị để hoàn thành công việc..." : "Nhập ghi chú nếu có..."}"
         ></textarea>
 
       </div>
