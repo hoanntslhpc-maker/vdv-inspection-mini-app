@@ -251,6 +251,19 @@ function renderDevices(devices) {
     row.className =
       "device";
 
+    /* Bố cục gọn: checkbox trái, thông tin thiết bị phải */
+    row.style.setProperty("display", "flex", "important");
+    row.style.setProperty("flex-direction", "row", "important");
+    row.style.setProperty("align-items", "center", "important");
+    row.style.setProperty("justify-content", "flex-start", "important");
+    row.style.setProperty("gap", "12px", "important");
+    row.style.setProperty("box-sizing", "border-box", "important");
+    row.style.setProperty("min-height", "60px", "important");
+    row.style.setProperty("height", "auto", "important");
+    row.style.setProperty("padding", "10px 14px", "important");
+    row.style.setProperty("margin-bottom", "7px", "important");
+    row.style.setProperty("text-align", "left", "important");
+
 
     /* CHECKBOX */
 
@@ -259,6 +272,14 @@ function renderDevices(devices) {
 
     checkbox.type =
       "checkbox";
+
+    checkbox.style.setProperty("flex", "0 0 18px", "important");
+    checkbox.style.setProperty("width", "18px", "important");
+    checkbox.style.setProperty("height", "18px", "important");
+    checkbox.style.setProperty("margin", "0", "important");
+    checkbox.style.setProperty("position", "static", "important");
+    checkbox.style.setProperty("transform", "none", "important");
+    checkbox.style.setProperty("align-self", "center", "important");
 
     checkbox.checked =
       selectedDevices.has(
@@ -283,6 +304,12 @@ function renderDevices(devices) {
     const infoWrapper =
       document.createElement("div");
 
+    infoWrapper.style.setProperty("flex", "1 1 0", "important");
+    infoWrapper.style.setProperty("min-width", "0", "important");
+    infoWrapper.style.setProperty("width", "auto", "important");
+    infoWrapper.style.setProperty("margin", "0", "important");
+    infoWrapper.style.setProperty("text-align", "left", "important");
+
 
     /* MÃ THIẾT BỊ */
 
@@ -291,6 +318,9 @@ function renderDevices(devices) {
 
     codeDiv.className =
       "device-code";
+
+    codeDiv.style.setProperty("text-align", "left", "important");
+    codeDiv.style.setProperty("margin", "0 0 3px", "important");
 
     codeDiv.innerText =
       device.code || "";
@@ -303,6 +333,10 @@ function renderDevices(devices) {
 
     infoDiv.className =
       "device-info";
+
+    infoDiv.style.setProperty("text-align", "left", "important");
+    infoDiv.style.setProperty("margin", "0", "important");
+    infoDiv.style.setProperty("overflow-wrap", "anywhere", "important");
 
     const sensorType =
       device.sensor_type || "";
