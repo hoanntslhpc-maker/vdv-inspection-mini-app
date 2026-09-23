@@ -1606,6 +1606,9 @@ function renderProcedure() {
       if (event.target?.id === "assessment-3") {
         updateDplStep4Visibility();
       }
+      if (event.target?.id === "value-6") {
+        updateStressConnectionVisibility();
+      }
       updateInspectionSaveButton();
     };
     container.addEventListener("change", onInspectionEdit);
@@ -1617,6 +1620,7 @@ function renderProcedure() {
     "saveSection"
   );
   updateDplStep4Visibility();
+  updateStressConnectionVisibility();
   updateInspectionSaveButton();
 
 }
@@ -1728,12 +1732,12 @@ function createProcedureStep(
       <div class="form-group">
 
         <label class="form-label">
-          ${isDpl420Procedure() && order === 5 ? "Kết luận kiểm tra *" : "Ghi chú"}
+          ${isFinalConclusionStep(step) ? "Kết luận kiểm tra *" : "Ghi chú"}
         </label>
 
         <textarea
           id="note-${order}"
-          placeholder="${isDpl420Procedure() && order === 5 ? "Nhập kết luận về tình trạng thiết bị để hoàn thành công việc..." : "Nhập ghi chú nếu có..."}"
+          placeholder="${isFinalConclusionStep(step) ? "Nhập kết luận về tình trạng thiết bị để hoàn thành công việc..." : "Nhập ghi chú nếu có..."}"
         ></textarea>
 
       </div>
@@ -2076,6 +2080,8 @@ function renderInput(
       V  -> Giá trị điện áp
     */
 
+    const isStressMeasurement = isStressProcedure() && [3, 4, 5, 8, 9, 10].includes(order);
+
     const measurementHtml =
 
       units
@@ -2083,7 +2089,7 @@ function renderInput(
           (unit, index) => {
 
             let label =
-              `Giá trị ${unit}`;
+              isStressMeasurement ? unit : `Giá trị ${unit}`;
 
 
             if (
@@ -3662,6 +3668,7 @@ function prefillSavedInspection(
 
   );
   updateDplStep4Visibility();
+  updateStressConnectionVisibility();
   updateInspectionSaveButton();
 
 }
@@ -4240,11 +4247,60 @@ function updateDplStep4Visibility() {
   updateInspectionSaveButton();
 }
 
+// Quy trình ứng suất dùng cùng giao diện DPL, chỉ khác nội dung và nhánh đấu nối.
+function isStressProcedure() {
+  return currentProcedure.some(step =>
+    String(step.procedure_code || "").trim().toUpperCase() === "VW_STRESS"
+  );
+}
+
+function isFinalConclusionStep(step) {
+  return String(step.input_type || "").trim().toLowerCase() === "final_assessment" &&
+    ((isDpl420Procedure() && Number(step.step_order) === 5) ||
+     (isStressProcedure() && Number(step.step_order) === 11));
+}
+
+const STRESS_NO_CONNECTION = "Không có vị trí đấu nối dây";
+function isStressConnectionSkipped() {
+  return isStressProcedure() &&
+    String(document.getElementById("value-6")?.value || "").trim() === STRESS_NO_CONNECTION;
+}
+
+function updateStressConnectionVisibility() {
+  if (!isStressProcedure()) return;
+  const skipped = isStressConnectionSkipped();
+  for (const order of [7, 8, 9, 10]) {
+    const wrapper = document.getElementById(`result-${order}`)?.closest(".procedure-step");
+    if (!wrapper) continue;
+    const body = wrapper.querySelector(".step-body");
+    if (body) body.classList.toggle("hidden", skipped);
+    let banner = wrapper.querySelector(".stress-skip-banner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "stress-skip-banner";
+      banner.style.cssText = "padding:12px 16px;color:#475569;font-weight:600";
+      wrapper.querySelector(".step-header")?.after(banner);
+    }
+    banner.textContent = STRESS_NO_CONNECTION;
+    banner.classList.toggle("hidden", !skipped);
+  }
+}
+
 function readInspectionStep(step) {
   const order = Number(step.step_order);
   const type = String(step.input_type || "select_note").trim().toLowerCase();
   let value = "";
   let assessment = "";
+
+  // Lưu đủ 11 dòng: bước 7–10 mang trạng thái rõ ràng khi không có đấu nối.
+  if (isStressConnectionSkipped() && [7, 8, 9, 10].includes(order)) {
+    return {
+      step_order: order, step_title: step.step_title || "",
+      result: STRESS_NO_CONNECTION, assessment: STRESS_NO_CONNECTION,
+      note: STRESS_NO_CONNECTION, unit: step.unit || "",
+      existing_photo_urls: [], photo_count: 0
+    };
+  }
 
   if (type === "multi_number_result") {
     const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
@@ -4293,6 +4349,7 @@ function readInspectionStep(step) {
 function isStepComplete(step, result) {
   const type = String(step.input_type || "select_note").trim().toLowerCase();
   if (isDpl420Procedure() && Number(step.step_order) === 4 && isDplStep4Skipped()) return true;
+  if (isStressConnectionSkipped() && [7, 8, 9, 10].includes(Number(step.step_order))) return true;
   if (type === "multi_number_result") {
     const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
     if (!units.length || units.some(unit => result.result?.[unit] === "" || result.result?.[unit] == null)) return false;
@@ -4315,7 +4372,7 @@ function isStepComplete(step, result) {
   // Bước 5 DPL: chấp nhận lựa chọn đánh giá thực tế trong cấu hình
   // (ví dụ "Bình thường"), không ép thành "Đạt"/"Không đạt".
   // Bắt buộc có đánh giá và ghi chú để hoàn thành thiết bị.
-  if (isDpl420Procedure() && Number(step.step_order) === 5 &&
+  if (isFinalConclusionStep(step) &&
       (!String(result.assessment || "").trim() || !String(result.note || "").trim())) return false;
   return true;
 }
@@ -4323,7 +4380,7 @@ function isStepComplete(step, result) {
 function getInspectionProgress() {
   const results = currentProcedure.map(readInspectionStep);
   const completed = currentProcedure.every((step, index) =>
-    (isDpl420Procedure() && [1, 2, 3, 4, 5].includes(Number(step.step_order)))
+    ((isDpl420Procedure() && [1, 2, 3, 4, 5].includes(Number(step.step_order))) || isStressProcedure())
       ? isStepComplete(step, results[index])
       : (!toBoolean(step.required) || isStepComplete(step, results[index]))
   );
@@ -4496,6 +4553,13 @@ async function saveInspection(event) {
       step4.assessment = "Không kiểm tra – bước 3 đạt";
       step4.note = "Bước 3 đạt, không thực hiện bước 4.";
       step4.existing_photo_urls = [];
+    }
+  }
+
+  if (isStressConnectionSkipped()) {
+    for (const order of [7, 8, 9, 10]) {
+      // Ảnh cũ ở nhánh không áp dụng không được gửi lại khi chỉnh sửa.
+      selectedPhotos[order] = [];
     }
   }
 
