@@ -2130,17 +2130,13 @@ function renderInput(
                 <div class="number-row">
 
                   <input
-                    type="number"
-                    step="any"
+                    type="${isStressMeasurement && /nhiệt độ/i.test(unit) ? "text" : "number"}"
+                    ${isStressMeasurement && /nhiệt độ/i.test(unit) ? 'inputmode="text" placeholder="Nhập số hoặc OL"' : 'step="any"'}
                     id="multi-${order}-${index}"
                   >
 
 
-                  <div class="unit-box">
-
-                    ${escapeHtml(unit)}
-
-                  </div>
+                  ${isStressMeasurement ? "" : `<div class="unit-box">${escapeHtml(unit)}</div>`}
 
                 </div>
 
@@ -4390,9 +4386,54 @@ function getInspectionProgress() {
 function updateInspectionSaveButton() {
   const button = document.getElementById("saveInspectionButton");
   if (!button || button.disabled || !currentProcedure.length) return;
-  button.textContent = getInspectionProgress().completed
+  const progress = getInspectionProgress();
+  button.textContent = progress.completed
     ? "✅ HOÀN THÀNH CÔNG VIỆC"
     : "💾 LƯU KẾT QUẢ";
+
+  // Chỉ VW_STRESS: cho biết CHÍNH XÁC bước nào còn thiếu, không thay đổi DPL.
+  let hint = document.getElementById("stressCompletionHint");
+  if (!isStressProcedure()) {
+    if (hint) hint.remove();
+    return;
+  }
+  if (!hint) {
+    hint = document.createElement("div");
+    hint.id = "stressCompletionHint";
+    hint.style.cssText = "margin-top:10px;padding:12px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:14px;line-height:1.6;white-space:pre-line";
+    button.insertAdjacentElement("afterend", hint);
+  }
+  if (progress.completed) {
+    hint.textContent = "";
+    hint.style.display = "none";
+    return;
+  }
+  const missing = [];
+  currentProcedure.forEach((step, index) => {
+    const order = Number(step.step_order);
+    if (isStressConnectionSkipped() && [7, 8, 9, 10].includes(order)) return;
+    const row = progress.results[index];
+    if (isStepComplete(step, row)) return;
+    const type = String(step.input_type || "select_note").trim().toLowerCase();
+    const reasons = [];
+    if (type === "multi_number_result") {
+      const units = String(step.unit || "").split(",").map(x => x.trim()).filter(Boolean);
+      const absent = units.filter(unit => row.result?.[unit] === "" || row.result?.[unit] == null);
+      if (absent.length) reasons.push("thiếu " + absent.join(", "));
+      if (!row.assessment) reasons.push("chưa chọn Đạt/Không đạt");
+    } else if (!row.result) {
+      reasons.push("chưa chọn kết quả");
+    }
+    if (toBoolean(step.photo_required) && row.photo_count < Math.max(1, Number(step.photo_min || 1))) {
+      reasons.push(`thiếu ảnh (${row.photo_count}/${Math.max(1, Number(step.photo_min || 1))})`);
+    }
+    if (isFinalConclusionStep(step) && !String(row.note || "").trim()) {
+      reasons.push("chưa nhập kết luận kiểm tra");
+    }
+    missing.push(`Bước ${order}: ${reasons.join("; ") || "chưa đủ điều kiện"}`);
+  });
+  hint.style.display = "block";
+  hint.textContent = "Chưa đủ điều kiện hoàn thành:\n" + missing.join("\n");
 }
 
 function collectResults() {
