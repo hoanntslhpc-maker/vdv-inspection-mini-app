@@ -1949,8 +1949,8 @@ function renderInput(
         <div class="number-row">
 
           <input
-            type="number"
-            step="any"
+            type="${isStressProcedure() ? "text" : "number"}"
+            ${isStressProcedure() ? 'inputmode="text" placeholder="Nhập số, OL hoặc Không lên giá trị"' : 'step="any"'}
             id="value-${order}"
           >
 
@@ -2130,8 +2130,8 @@ function renderInput(
                 <div class="number-row">
 
                   <input
-                    type="${isStressMeasurement && /nhiệt độ/i.test(unit) ? "text" : "number"}"
-                    ${isStressMeasurement && /nhiệt độ/i.test(unit) ? 'inputmode="text" placeholder="Nhập số hoặc OL"' : 'step="any"'}
+                    type="${isStressMeasurement ? "text" : "number"}"
+                    ${isStressMeasurement ? `inputmode="text" placeholder="${/điện trở|shield/i.test(unit) ? 'Nhập số, OL hoặc Không lên giá trị' : 'Nhập số, OL hoặc Không lên giá trị'}"` : 'step="any"'}
                     id="multi-${order}-${index}"
                   >
 
