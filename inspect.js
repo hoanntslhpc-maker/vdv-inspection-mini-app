@@ -1769,12 +1769,43 @@ function createProcedureStep(
               ></div>
 
 
+              <div
+                style="
+                  display:flex;
+                  gap:10px;
+                  flex-wrap:wrap;
+                  margin-bottom:10px;
+                "
+              >
+
+                <label
+                  for="photo-camera-${order}"
+                  class="btn btn-secondary"
+                  style="flex:1;min-width:130px;text-align:center;cursor:pointer;"
+                >📷 Chụp ảnh</label>
+
+                <label
+                  for="photo-library-${order}"
+                  class="btn btn-secondary"
+                  style="flex:1;min-width:130px;text-align:center;cursor:pointer;"
+                >🖼️ Chọn từ thư viện</label>
+
+              </div>
+
               <input
                 type="file"
-                id="photo-${order}"
+                id="photo-camera-${order}"
                 accept="image/*"
                 capture="environment"
+                style="display:none;"
+              >
+
+              <input
+                type="file"
+                id="photo-library-${order}"
+                accept="image/*"
                 multiple
+                style="display:none;"
               >
 
 
@@ -1806,26 +1837,19 @@ function createProcedureStep(
   wrapper.addEventListener("input", updateInspectionSaveButton);
   wrapper.addEventListener("change", updateInspectionSaveButton);
 
-  const photoInput =
-    wrapper.querySelector(
-      `#photo-${order}`
-    );
+  const cameraInput = wrapper.querySelector(`#photo-camera-${order}`);
+  const libraryInput = wrapper.querySelector(`#photo-library-${order}`);
 
+  if (cameraInput) {
+    cameraInput.addEventListener("change", event => {
+      previewPhotos(event, order);
+    });
+  }
 
-  if (photoInput) {
-
-    photoInput.addEventListener(
-      "change",
-      event => {
-
-        previewPhotos(
-          event,
-          order
-        );
-
-      }
-    );
-
+  if (libraryInput) {
+    libraryInput.addEventListener("change", event => {
+      previewPhotos(event, order);
+    });
   }
 
 
@@ -4190,7 +4214,8 @@ function updateDplStep4Visibility() {
   const automaticValue = "Không kiểm tra";
   const automaticNote = "Bước 3 đạt, không thực hiện bước 4.";
   const noteInput = document.getElementById("note-4");
-  const photoInput = document.getElementById("photo-4");
+  const cameraInput = document.getElementById("photo-camera-4");
+  const libraryInput = document.getElementById("photo-library-4");
 
   // Bước 4 luôn hiển thị để người kiểm tra nhìn thấy kết quả tự động.
   wrapper.classList.remove("hidden");
@@ -4236,8 +4261,9 @@ function updateDplStep4Visibility() {
   }
 
   // Bước 3 Đạt: không bắt ảnh bước 4; Không đạt: trả lại quyền tải ảnh.
-  if (photoInput) photoInput.disabled = skipped;
-  const photoBox = photoInput?.closest(".photo-box");
+  if (cameraInput) cameraInput.disabled = skipped;
+  if (libraryInput) libraryInput.disabled = skipped;
+  const photoBox = cameraInput?.closest(".photo-box") || libraryInput?.closest(".photo-box");
   if (photoBox) photoBox.classList.toggle("hidden", skipped);
 
   updateInspectionSaveButton();
@@ -4704,17 +4730,7 @@ async function saveInspection(event) {
       );
 
 
-    const input =
-      document.getElementById(
-        `photo-${order}`
-      );
-
-
-    if (!input) {
-
-      continue;
-
-    }
+    // Ảnh từ camera và thư viện đều được gom chung trong selectedPhotos[order].
 
 
    /*
